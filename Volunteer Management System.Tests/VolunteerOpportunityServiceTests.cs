@@ -1,4 +1,6 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using System.Collections.Generic;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
@@ -164,6 +166,47 @@ namespace Volunteer_Management_System.Tests
             StringAssert.Contains(
                 exception.Message,
                 "was not found");
+        }
+
+        [TestMethod]
+        public void DeleteOpportunity_WithExistingId_RemovesOpportunity()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(7);
+
+            VolunteerOpportunity opportunity =
+                service.CreateOpportunity(
+                    "Beach Cleanup",
+                    "Help clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(3),
+                    "Teamwork",
+                    10);
+
+            bool result =
+                service.DeleteOpportunity(opportunity.Id);
+
+            Assert.IsTrue(result);
+            Assert.HasCount(
+                0,
+                service.GetAllOpportunities());
+            Assert.IsNull(
+                service.FindOpportunityById(opportunity.Id));
+        }
+
+        [TestMethod]
+        public void DeleteOpportunity_WithUnknownId_ReturnsFalse()
+        {
+            VolunteerOpportunityService service = new();
+
+            bool result =
+                service.DeleteOpportunity(Guid.NewGuid());
+
+            Assert.IsFalse(result);
+            Assert.HasCount(
+                0,
+                service.GetAllOpportunities());
         }
     }
 }

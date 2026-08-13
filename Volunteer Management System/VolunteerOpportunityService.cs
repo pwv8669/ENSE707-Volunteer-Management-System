@@ -71,5 +71,18 @@ namespace Volunteer_Management_System
                 requiredSkills,
                 volunteersNeeded);
         }
+
+        public bool DeleteOpportunity(Guid opportunityId)
+        {
+            VolunteerOpportunity? opportunity =
+                FindOpportunityById(opportunityId);
+
+            if (opportunity == null)
+            {
+                return false;
+            }
+
+            return _opportunities.Remove(opportunity);
+        }
     }
 }
