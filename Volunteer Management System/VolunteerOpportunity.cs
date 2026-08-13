@@ -48,6 +48,15 @@ namespace Volunteer_Management_System
             string requiredSkills,
             int volunteersNeeded)
         {
+            ValidateDetails(
+                title,
+                description,
+                location,
+                startDateTime,
+                endDateTime,
+                requiredSkills,
+                volunteersNeeded);
+
             return new VolunteerOpportunity
             {
                 Id = Guid.NewGuid(),
@@ -61,6 +70,92 @@ namespace Volunteer_Management_System
                 Status = OpportunityStatus.Draft,
                 CreatedAt = DateTime.UtcNow
             };
+        }
+
+        public void UpdateDetails(
+            string title,
+            string description,
+            string location,
+            DateTime startDateTime,
+            DateTime endDateTime,
+            string requiredSkills,
+            int volunteersNeeded)
+        {
+            ValidateDetails(
+                title,
+                description,
+                location,
+                startDateTime,
+                endDateTime,
+                requiredSkills,
+                volunteersNeeded);
+
+            Title = title.Trim();
+            Description = description.Trim();
+            Location = location.Trim();
+            StartDateTime = startDateTime;
+            EndDateTime = endDateTime;
+            RequiredSkills = requiredSkills.Trim();
+            VolunteersNeeded = volunteersNeeded;
+        }
+
+        private static void ValidateDetails(
+            string title,
+            string description,
+            string location,
+            DateTime startDateTime,
+            DateTime endDateTime,
+            string requiredSkills,
+            int volunteersNeeded)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                throw new ArgumentException(
+                    "Title is required.",
+                    nameof(title));
+            }
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                throw new ArgumentException(
+                    "Description is required.",
+                    nameof(description));
+            }
+
+            if (string.IsNullOrWhiteSpace(location))
+            {
+                throw new ArgumentException(
+                    "Location is required.",
+                    nameof(location));
+            }
+
+            if (startDateTime <= DateTime.UtcNow)
+            {
+                throw new ArgumentException(
+                    "Start date and time must be in the future.",
+                    nameof(startDateTime));
+            }
+
+            if (endDateTime <= startDateTime)
+            {
+                throw new ArgumentException(
+                    "End date and time must be after the start date and time.",
+                    nameof(endDateTime));
+            }
+
+            if (string.IsNullOrWhiteSpace(requiredSkills))
+            {
+                throw new ArgumentException(
+                    "Required skills are required.",
+                    nameof(requiredSkills));
+            }
+
+            if (volunteersNeeded <= 0)
+            {
+                throw new ArgumentException(
+                    "Volunteers needed must be greater than zero.",
+                    nameof(volunteersNeeded));
+            }
         }
     }
 }
