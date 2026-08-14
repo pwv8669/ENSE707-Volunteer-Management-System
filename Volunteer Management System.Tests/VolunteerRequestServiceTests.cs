@@ -82,5 +82,100 @@ namespace Volunteer_Management_System.Tests
 
             Assert.HasCount(2, requests);
         }
+
+        [TestMethod]
+        public void FulfillRequest_WithExistingId_SetsFulfilledStatus()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest request =
+                service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            service.FulfillRequest(request.Id);
+
+            VolunteerRequest? updatedRequest =
+                service.FindRequestById(request.Id);
+
+            Assert.IsNotNull(updatedRequest);
+            Assert.AreEqual(
+                VolunteerRequestStatus.Fulfilled,
+                updatedRequest.Status);
+        }
+
+        [TestMethod]
+        public void FulfillRequest_WithUnknownId_ThrowsException()
+        {
+            VolunteerRequestService service = new();
+
+            KeyNotFoundException exception =
+                Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                    service.FulfillRequest(Guid.NewGuid()));
+
+            StringAssert.Contains(
+                exception.Message,
+                "was not found");
+        }
+
+        [TestMethod]
+        public void DeclineRequest_WithExistingId_SetsDeclinedStatus()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest request =
+                service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            service.DeclineRequest(request.Id);
+
+            VolunteerRequest? updatedRequest =
+                service.FindRequestById(request.Id);
+
+            Assert.IsNotNull(updatedRequest);
+            Assert.AreEqual(
+                VolunteerRequestStatus.Declined,
+                updatedRequest.Status);
+        }
+
+        [TestMethod]
+        public void DeclineRequest_WithUnknownId_ThrowsException()
+        {
+            VolunteerRequestService service = new();
+
+            KeyNotFoundException exception =
+                Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                    service.DeclineRequest(Guid.NewGuid()));
+
+            StringAssert.Contains(
+                exception.Message,
+                "was not found");
+        }
+
+        [TestMethod]
+        public void LogHours_WithExistingFulfilledRequest_AccumulatesHours()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest request =
+                service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            service.FulfillRequest(request.Id);
+
+            service.LogHours(request.Id, 4);
+
+            VolunteerRequest? updatedRequest =
+                service.FindRequestById(request.Id);
+
+            Assert.IsNotNull(updatedRequest);
+            Assert.AreEqual(4.0, updatedRequest.HoursLogged);
+        }
+
+        [TestMethod]
+        public void LogHours_WithUnknownId_ThrowsException()
+        {
+            VolunteerRequestService service = new();
+
+            KeyNotFoundException exception =
+                Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                    service.LogHours(Guid.NewGuid(), 2));
+
+            StringAssert.Contains(
+                exception.Message,
+                "was not found");
+        }
     }
 }

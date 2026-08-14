@@ -42,5 +42,36 @@ namespace Volunteer_Management_System
                 .Where(request => request.VolunteerId == volunteerId)
                 .ToList();
         }
+
+        public void FulfillRequest(Guid requestId)
+        {
+            VolunteerRequest request = GetRequestOrThrow(requestId);
+            request.Fulfill();
+        }
+
+        public void DeclineRequest(Guid requestId)
+        {
+            VolunteerRequest request = GetRequestOrThrow(requestId);
+            request.Decline();
+        }
+
+        public void LogHours(Guid requestId, double hours)
+        {
+            VolunteerRequest request = GetRequestOrThrow(requestId);
+            request.LogHours(hours);
+        }
+
+        private VolunteerRequest GetRequestOrThrow(Guid requestId)
+        {
+            VolunteerRequest? request = FindRequestById(requestId);
+
+            if (request == null)
+            {
+                throw new KeyNotFoundException(
+                    "Volunteer request was not found.");
+            }
+
+            return request;
+        }
     }
 }
