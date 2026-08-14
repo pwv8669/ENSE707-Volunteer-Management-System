@@ -54,5 +54,47 @@ namespace Volunteer_Management_System
                 RequestedAt = DateTime.UtcNow
             };
         }
+
+        public void Fulfill()
+        {
+            if (Status != VolunteerRequestStatus.Pending)
+            {
+                throw new InvalidOperationException(
+                    "Only pending requests can be fulfilled.");
+            }
+
+            Status = VolunteerRequestStatus.Fulfilled;
+            RespondedAt = DateTime.UtcNow;
+        }
+
+        public void Decline()
+        {
+            if (Status != VolunteerRequestStatus.Pending)
+            {
+                throw new InvalidOperationException(
+                    "Only pending requests can be declined.");
+            }
+
+            Status = VolunteerRequestStatus.Declined;
+            RespondedAt = DateTime.UtcNow;
+        }
+
+        public void LogHours(double hours)
+        {
+            if (Status != VolunteerRequestStatus.Fulfilled)
+            {
+                throw new InvalidOperationException(
+                    "Hours can only be logged for fulfilled requests.");
+            }
+
+            if (hours <= 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(hours),
+                    "Hours must be greater than zero.");
+            }
+
+            HoursLogged += hours;
+        }
     }
 }
