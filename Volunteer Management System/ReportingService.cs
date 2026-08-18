@@ -102,5 +102,21 @@ namespace Volunteer_Management_System
                 TotalHoursLogged = requests.Sum(request => request.HoursLogged)
             };
         }
+
+        public IReadOnlyList<VolunteerRequest> GetPendingRequests()
+        {
+            return _requestService
+                .GetAllRequests()
+                .Where(request => request.Status == VolunteerRequestStatus.Pending)
+                .ToList();
+        }
+
+        public IReadOnlyList<VolunteerRequest> GetFulfilledRequests()
+        {
+            return _requestService
+                .GetAllRequests()
+                .Where(request => request.Status == VolunteerRequestStatus.Fulfilled)
+                .ToList();
+        }
     }
 }

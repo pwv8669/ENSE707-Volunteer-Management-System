@@ -133,5 +133,88 @@ namespace Volunteer_Management_System.Tests
                 exception.Message,
                 "was not found");
         }
+
+        [TestMethod]
+        public void GetPendingRequests_WithMixedRequestStatuses_ReturnsOnlyPendingRequests()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService =
+                new(requestService, opportunityService);
+
+            VolunteerOpportunity opportunity =
+                CreateOpportunity(opportunityService);
+
+            VolunteerRequest pendingRequest =
+                requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+
+            VolunteerRequest fulfilledRequest =
+                requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            requestService.FulfillRequest(fulfilledRequest.Id);
+
+            VolunteerRequest declinedRequest =
+                requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            requestService.DeclineRequest(declinedRequest.Id);
+
+            IReadOnlyList<VolunteerRequest> pendingRequests =
+                reportingService.GetPendingRequests();
+
+            Assert.HasCount(1, pendingRequests);
+            Assert.AreEqual(pendingRequest.Id, pendingRequests[0].Id);
+        }
+
+        [TestMethod]
+        public void GetFulfilledRequests_WithMixedRequestStatuses_ReturnsOnlyFulfilledRequests()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService =
+                new(requestService, opportunityService);
+
+            VolunteerOpportunity opportunity =
+                CreateOpportunity(opportunityService);
+
+            requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+
+            VolunteerRequest fulfilledRequest =
+                requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            requestService.FulfillRequest(fulfilledRequest.Id);
+
+            VolunteerRequest declinedRequest =
+                requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            requestService.DeclineRequest(declinedRequest.Id);
+
+            IReadOnlyList<VolunteerRequest> fulfilledRequests =
+                reportingService.GetFulfilledRequests();
+
+            Assert.HasCount(1, fulfilledRequests);
+            Assert.AreEqual(fulfilledRequest.Id, fulfilledRequests[0].Id);
+        }
+
+        [TestMethod]
+        public void GetPendingRequests_WithNoRequests_ReturnsEmptyList()
+        {
+            ReportingService reportingService = new(
+                new VolunteerRequestService(),
+                new VolunteerOpportunityService());
+
+            IReadOnlyList<VolunteerRequest> pendingRequests =
+                reportingService.GetPendingRequests();
+
+            Assert.HasCount(0, pendingRequests);
+        }
+
+        [TestMethod]
+        public void GetFulfilledRequests_WithNoRequests_ReturnsEmptyList()
+        {
+            ReportingService reportingService = new(
+                new VolunteerRequestService(),
+                new VolunteerOpportunityService());
+
+            IReadOnlyList<VolunteerRequest> fulfilledRequests =
+                reportingService.GetFulfilledRequests();
+
+            Assert.HasCount(0, fulfilledRequests);
+        }
     }
 }
