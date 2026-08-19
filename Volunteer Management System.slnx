@@ -8,4 +8,5 @@
   </Folder>
   <Project Path="Volunteer Management System.Tests/Volunteer Management System.Tests.csproj" Id="ae18c15d-4ad3-4bed-bb55-851fd5b5f555" />
   <Project Path="Volunteer Management System/Volunteer Management System.csproj" />
+  <Project Path="Volunteer Management System.Demo/Volunteer Management System.Demo.csproj" />
 </Solution>
