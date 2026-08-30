@@ -3,11 +3,13 @@ using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
+// This class contains unit tests for the User class in the Volunteer Management System.
 namespace Volunteer_Management_System.Tests
 {
     [TestClass]
     public class UserTests
     {
+        // Test that creating a user with valid inputs sets the identity, role, and password correctly.
         [TestMethod]
         public void Create_ValidInputs_SetsIdentityRoleAndPassword()
         {
@@ -31,6 +33,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsTrue(user.VerifyPassword(password), "VerifyPassword must return true for the original password.");
         }
 
+        // Test that creating a user with a missing username throws an ArgumentException.
         [TestMethod]
         public void Create_MissingUsername_Throws()
         {
@@ -45,6 +48,7 @@ namespace Volunteer_Management_System.Tests
             }
         }
 
+        // Test that creating a user with a missing email throws an ArgumentException.
         [TestMethod]
         public void Create_MissingEmail_Throws()
         {
@@ -59,6 +63,7 @@ namespace Volunteer_Management_System.Tests
             }
         }
 
+        // Test that creating a user with a short password throws an ArgumentException.
         [TestMethod]
         public void Create_ShortPassword_Throws()
         {
@@ -73,6 +78,7 @@ namespace Volunteer_Management_System.Tests
             }
         }
 
+        // Test that setting an invalid password (null or too short) throws an ArgumentException.
         [TestMethod]
         public void SetPassword_Invalid_Throws()
         {
@@ -99,6 +105,7 @@ namespace Volunteer_Management_System.Tests
             }
         }
 
+        // Test that verifying the incorrect password returns false.
         [TestMethod]
         public void VerifyPassword_WrongPassword_ReturnsFalse()
         {
@@ -107,6 +114,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsFalse(user.VerifyPassword("incorrect-password"), "VerifyPassword should return false for wrong password.");
         }
 
+        // Test that verifying a password when no password is set returns false.
         [TestMethod]
         public void VerifyPassword_NoPasswordSet_ReturnsFalse()
         {
@@ -114,6 +122,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsFalse(user.VerifyPassword("any"), "VerifyPassword should return false when no salt/hash present.");
         }
 
+        // Test that setting the password generates a new salt and hash each time, even for the same plaintext password.
         [TestMethod]
         public void SetPassword_GeneratesNewSaltAndHash_EachCall()
         {
@@ -133,6 +142,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsTrue(user.VerifyPassword("Password!234"), "VerifyPassword must return true after resetting password.");
         }
 
+        // Test that updating the last login time sets it to a recent UTC time.
         [TestMethod]
         public void UpdateLastLogin_SetsUtcTime()
         {
@@ -144,6 +154,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsTrue((DateTime.UtcNow - user.LastLoginAt.Value) < TimeSpan.FromSeconds(5), "LastLoginAt should be set to a recent UTC time.");
         }
 
+        // Test that setting the role updates the user's role correctly.
         [TestMethod]
         public void SetRole_ChangesRole()
         {

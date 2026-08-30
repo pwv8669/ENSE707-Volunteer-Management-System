@@ -2,8 +2,10 @@
 using System.Security.Cryptography;
 using System.Text;
 
+// The purpose of this class is to represent a user in the Volunteer Management System, including identity, authorization, and password management.
 namespace Volunteer_Management_System
 {
+    // Roles for users in the system.
     public enum Role
     {
         Volunteer,
@@ -11,6 +13,7 @@ namespace Volunteer_Management_System
         Admin
     }
 
+    // Represents a user in the Volunteer Management System.
     public class User
     {
         // Identity

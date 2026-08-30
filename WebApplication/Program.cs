@@ -1,6 +1,8 @@
 using Volunteer_Management_System;
 using WebApplication;
 using WebApplication.Components;
+using WebApplication.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 
 var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,12 @@ builder.Services.AddSingleton<VolunteerOpportunityService>();
 builder.Services.AddSingleton<VolunteerRequestService>();
 builder.Services.AddSingleton<ReportingService>();
 builder.Services.AddSingleton<VolunteerNameDirectory>();
+
+// Register our simple user store and authentication services
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
 
