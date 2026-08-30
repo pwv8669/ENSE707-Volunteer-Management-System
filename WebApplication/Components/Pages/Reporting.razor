@@ -1,7 +1,9 @@
 @page "/reporting"
+@rendermode InteractiveServer
 @using Volunteer_Management_System
 @inject ReportingService ReportingService
 @inject VolunteerOpportunityService OpportunityService
+@inject VolunteerRequestService RequestService
 @inject VolunteerNameDirectory Names
 
 <PageTitle>Reporting and Dashboard</PageTitle>
@@ -70,9 +72,17 @@
         <ul class="list-group">
             @foreach (VolunteerRequest request in PendingRequests)
             {
-                <li class="list-group-item">
-                    @Names.GetName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>@Names.GetName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)</span>
+                    <span>
+                        <button class="btn btn-sm btn-success" @onclick="() => Fulfill(request.Id)">Fulfill</button>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Decline(request.Id)">Decline</button>
+                    </span>
                 </li>
+            }
+            @if (PendingRequests.Count == 0)
+            {
+                <li class="list-group-item text-muted">No pending requests.</li>
             }
         </ul>
     </div>
@@ -86,17 +96,32 @@
                     (@request.HoursLogged hrs)
                 </li>
             }
+            @if (FulfilledRequests.Count == 0)
+            {
+                <li class="list-group-item text-muted">No fulfilled requests yet.</li>
+            }
         </ul>
     </div>
 </div>
+
+@if (!string.IsNullOrEmpty(StatusMessage))
+{
+    <div class="alert alert-info mt-3" role="alert">@StatusMessage</div>
+}
 
 @code {
     private IReadOnlyList<VolunteerParticipationSummary> ParticipationReport { get; set; } = [];
     private List<EventStatistics> EventStatisticsList { get; set; } = [];
     private IReadOnlyList<VolunteerRequest> PendingRequests { get; set; } = [];
     private IReadOnlyList<VolunteerRequest> FulfilledRequests { get; set; } = [];
+    private string? StatusMessage { get; set; }
 
     protected override void OnInitialized()
+    {
+        RefreshData();
+    }
+
+    private void RefreshData()
     {
         ParticipationReport = ReportingService.GetVolunteerParticipationReport();
         PendingRequests = ReportingService.GetPendingRequests();
@@ -106,6 +131,20 @@
             .GetAllOpportunities()
             .Select(opportunity => ReportingService.GetEventStatistics(opportunity.Id))
             .ToList();
+    }
+
+    private void Fulfill(Guid requestId)
+    {
+        RequestService.FulfillRequest(requestId);
+        StatusMessage = $"{Names.GetName(RequestService.FindRequestById(requestId)!.VolunteerId)}'s request was fulfilled.";
+        RefreshData();
+    }
+
+    private void Decline(Guid requestId)
+    {
+        RequestService.DeclineRequest(requestId);
+        StatusMessage = $"{Names.GetName(RequestService.FindRequestById(requestId)!.VolunteerId)}'s request was declined.";
+        RefreshData();
     }
 
     private string OpportunityTitle(Guid opportunityId)
