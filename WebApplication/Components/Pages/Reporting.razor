@@ -1,0 +1,115 @@
+@page "/reporting"
+@using Volunteer_Management_System
+@inject ReportingService ReportingService
+@inject VolunteerOpportunityService OpportunityService
+@inject VolunteerNameDirectory Names
+
+<PageTitle>Reporting and Dashboard</PageTitle>
+
+<h1>Reporting and Dashboard</h1>
+
+<h2>Volunteer Participation Report</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Volunteer</th>
+            <th>Total Requests</th>
+            <th>Fulfilled</th>
+            <th>Pending</th>
+            <th>Declined</th>
+            <th>Hours Logged</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (VolunteerParticipationSummary summary in ParticipationReport)
+        {
+            <tr>
+                <td>@Names.GetName(summary.VolunteerId)</td>
+                <td>@summary.TotalRequests</td>
+                <td>@summary.FulfilledRequests</td>
+                <td>@summary.PendingRequests</td>
+                <td>@summary.DeclinedRequests</td>
+                <td>@summary.TotalHoursLogged</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h2>Event Statistics &amp; Volunteer Hours</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Event</th>
+            <th>Volunteers Needed</th>
+            <th>Requests Received</th>
+            <th>Fulfilled</th>
+            <th>Pending</th>
+            <th>Declined</th>
+            <th>Hours Logged</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (EventStatistics statistics in EventStatisticsList)
+        {
+            <tr>
+                <td>@statistics.Title</td>
+                <td>@statistics.VolunteersNeeded</td>
+                <td>@statistics.RequestsReceived</td>
+                <td>@statistics.FulfilledRequests</td>
+                <td>@statistics.PendingRequests</td>
+                <td>@statistics.DeclinedRequests</td>
+                <td>@statistics.TotalHoursLogged</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<div class="row">
+    <div class="col-md-6">
+        <h2>Pending Volunteer Requests</h2>
+        <ul class="list-group">
+            @foreach (VolunteerRequest request in PendingRequests)
+            {
+                <li class="list-group-item">
+                    @Names.GetName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)
+                </li>
+            }
+        </ul>
+    </div>
+    <div class="col-md-6">
+        <h2>Fulfilled Volunteer Requests</h2>
+        <ul class="list-group">
+            @foreach (VolunteerRequest request in FulfilledRequests)
+            {
+                <li class="list-group-item">
+                    @Names.GetName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)
+                    (@request.HoursLogged hrs)
+                </li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<VolunteerParticipationSummary> ParticipationReport { get; set; } = [];
+    private List<EventStatistics> EventStatisticsList { get; set; } = [];
+    private IReadOnlyList<VolunteerRequest> PendingRequests { get; set; } = [];
+    private IReadOnlyList<VolunteerRequest> FulfilledRequests { get; set; } = [];
+
+    protected override void OnInitialized()
+    {
+        ParticipationReport = ReportingService.GetVolunteerParticipationReport();
+        PendingRequests = ReportingService.GetPendingRequests();
+        FulfilledRequests = ReportingService.GetFulfilledRequests();
+
+        EventStatisticsList = OpportunityService
+            .GetAllOpportunities()
+            .Select(opportunity => ReportingService.GetEventStatistics(opportunity.Id))
+            .ToList();
+    }
+
+    private string OpportunityTitle(Guid opportunityId)
+    {
+        return OpportunityService.FindOpportunityById(opportunityId)?.Title ?? "Unknown event";
+    }
+}

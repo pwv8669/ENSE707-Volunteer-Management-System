@@ -1,3 +1,5 @@
+using Volunteer_Management_System;
+using WebApplication;
 using WebApplication.Components;
 
 var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
@@ -6,7 +8,17 @@ var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddSingleton<VolunteerOpportunityService>();
+builder.Services.AddSingleton<VolunteerRequestService>();
+builder.Services.AddSingleton<ReportingService>();
+builder.Services.AddSingleton<VolunteerNameDirectory>();
+
 var app = builder.Build();
+
+Dictionary<Guid, string> volunteerNames = SampleDataSeeder.Seed(
+    app.Services.GetRequiredService<VolunteerOpportunityService>(),
+    app.Services.GetRequiredService<VolunteerRequestService>());
+app.Services.GetRequiredService<VolunteerNameDirectory>().Load(volunteerNames);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
