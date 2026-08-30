@@ -1,10 +1,18 @@
 using WebApplication.Components;
+using WebApplication.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 
 var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Register our simple user store and authentication services
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
 

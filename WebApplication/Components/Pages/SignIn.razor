@@ -1,0 +1,58 @@
+@page "/signin"
+@using WebApplication.Services
+@using Volunteer_Management_System
+@inject IUserRepository Users
+@inject AuthService Auth
+@inject Microsoft.AspNetCore.Components.NavigationManager Nav
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
+
+<h3>Sign in</h3>
+
+<div>
+	<label> Email </label>
+	<input @bind="Email" />
+</div>
+<div>
+	<label> Password </label>
+	<input type="password" @bind="Password" />
+</div>
+<div style="margin-top:8px">
+	<button @onclick="Submit">Sign in</button>
+	<a href="/signup" style="margin-left:8px">Create account</a>
+</div>
+
+@if (!string.IsNullOrEmpty(Error))
+{
+	<p style="color:red">@Error</p>
+}
+
+@code {
+	string Email = string.Empty;
+	string Password = string.Empty;
+	string? Error;
+
+	async Task Submit()
+	{
+		Error = null;
+		var lookupEmail = Email?.Trim() ?? string.Empty;
+		var user = Users.FindByEmail(lookupEmail);
+		if (user == null)
+		{
+			Error = "User not found.";
+			return;
+		}
+
+		if (!user.VerifyPassword(Password))
+		{
+			Error = "Invalid password.";
+			return;
+		}
+
+		// Sign in
+		Auth.SignIn(user);
+		// notify authentication state provider
+		await AuthStateProvider.GetAuthenticationStateAsync();
+
+		Nav.NavigateTo("/");
+	}
+}

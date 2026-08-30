@@ -6,6 +6,9 @@
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
+@using Microsoft.AspNetCore.Components.Authorization
+@inject WebApplication.Services.AuthService Auth
+
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
         <div class="nav-item px-3">
@@ -25,6 +28,27 @@
                 <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
             </NavLink>
         </div>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <a class="nav-link" href="#" @onclick="SignOut">Sign out</a>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="signin">Sign in</NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>
+
+@code {
+    void SignOut()
+    {
+        Auth.SignOut();
+        // no navigation here; AuthState will update UI
+    }
+}
 

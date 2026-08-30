@@ -1,0 +1,61 @@
+@page "/signup"
+@using WebApplication.Services
+@using Volunteer_Management_System
+@inject IUserRepository Users
+@inject AuthService Auth
+@inject Microsoft.AspNetCore.Components.NavigationManager Nav
+
+<h3>Create account</h3>
+
+<div>
+	<label> Username </label>
+	<input @bind="Username" />
+</div>
+<div>
+	<label> Email </label>
+	<input @bind="Email" />
+</div>
+<div>
+	<label> Password </label>
+	<input type="password" @bind="Password" />
+</div>
+<div style="margin-top:8px">
+	<button @onclick="Submit">Create account</button>
+	<a href="/signin" style="margin-left:8px">Sign in</a>
+</div>
+
+@if (!string.IsNullOrEmpty(Error))
+{
+	<p style="color:red">@Error</p>
+}
+
+@code {
+	string Username = string.Empty;
+	string Email = string.Empty;
+	string Password = string.Empty;
+	string? Error;
+
+	void Submit()
+	{
+		Error = null;
+
+		try
+		{
+			var normalizedEmail = Email?.Trim() ?? string.Empty;
+			if (!string.IsNullOrEmpty(normalizedEmail) && Users.FindByEmail(normalizedEmail) != null)
+			{
+				Error = "An account with that email already exists.";
+				return;
+			}
+
+			var user = User.Create(Username, Email, Password, Role.Volunteer);
+			Users.Add(user);
+			Auth.SignIn(user);
+			Nav.NavigateTo("/");
+		}
+		catch (ArgumentException ex)
+		{
+			Error = ex.ParamName ?? ex.Message;
+		}
+	}
+}
