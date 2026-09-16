@@ -21,6 +21,10 @@ namespace Volunteer_Management_System
 
         public DateTime AppliedAt { get; init; }
 
+        public DateTime? ReviewedAt { get; private set; }
+
+        public Guid? ReviewedByUserId { get; private set; }
+
         private VolunteerApplication()
         {
         }
@@ -51,6 +55,40 @@ namespace Volunteer_Management_System
                 Status = VolunteerApplicationStatus.Pending,
                 AppliedAt = DateTime.UtcNow
             };
+        }
+
+        public void Approve(Guid reviewedByUserId)
+        {
+            ValidateReview(reviewedByUserId);
+
+            Status = VolunteerApplicationStatus.Approved;
+            ReviewedByUserId = reviewedByUserId;
+            ReviewedAt = DateTime.UtcNow;
+        }
+
+        public void Reject(Guid reviewedByUserId)
+        {
+            ValidateReview(reviewedByUserId);
+
+            Status = VolunteerApplicationStatus.Rejected;
+            ReviewedByUserId = reviewedByUserId;
+            ReviewedAt = DateTime.UtcNow;
+        }
+
+        private void ValidateReview(Guid reviewedByUserId)
+        {
+            if (reviewedByUserId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Reviewer id is required.",
+                    nameof(reviewedByUserId));
+            }
+
+            if (Status != VolunteerApplicationStatus.Pending)
+            {
+                throw new InvalidOperationException(
+                    "Only pending applications can be reviewed.");
+            }
         }
     }
 }

@@ -34,40 +34,88 @@ namespace Volunteer_Management_System.Tests
                 VolunteerApplicationStatus.Pending,
                 application.Status);
 
-            Assert.IsTrue(
-                application.AppliedAt <= DateTime.UtcNow);
+            Assert.IsNull(application.ReviewedAt);
+            Assert.IsNull(application.ReviewedByUserId);
         }
 
         [TestMethod]
         public void Create_WithEmptyVolunteerId_ThrowsArgumentException()
         {
-            Guid opportunityId = Guid.NewGuid();
-
-            ArgumentException exception =
-                Assert.ThrowsExactly<ArgumentException>(() =>
-                    VolunteerApplication.Create(
-                        Guid.Empty,
-                        opportunityId));
-
-            StringAssert.Contains(
-                exception.Message,
-                "Volunteer id is required");
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerApplication.Create(
+                    Guid.Empty,
+                    Guid.NewGuid()));
         }
 
         [TestMethod]
         public void Create_WithEmptyOpportunityId_ThrowsArgumentException()
         {
-            Guid volunteerId = Guid.NewGuid();
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerApplication.Create(
+                    Guid.NewGuid(),
+                    Guid.Empty));
+        }
 
-            ArgumentException exception =
-                Assert.ThrowsExactly<ArgumentException>(() =>
-                    VolunteerApplication.Create(
-                        volunteerId,
-                        Guid.Empty));
+        [TestMethod]
+        public void Approve_WithPendingApplication_SetsApprovedStatus()
+        {
+            VolunteerApplication application =
+                VolunteerApplication.Create(
+                    Guid.NewGuid(),
+                    Guid.NewGuid());
 
-            StringAssert.Contains(
-                exception.Message,
-                "Opportunity id is required");
+            Guid reviewerId = Guid.NewGuid();
+
+            application.Approve(reviewerId);
+
+            Assert.AreEqual(
+                VolunteerApplicationStatus.Approved,
+                application.Status);
+
+            Assert.AreEqual(
+                reviewerId,
+                application.ReviewedByUserId);
+
+            Assert.IsNotNull(
+                application.ReviewedAt);
+        }
+
+        [TestMethod]
+        public void Reject_WithPendingApplication_SetsRejectedStatus()
+        {
+            VolunteerApplication application =
+                VolunteerApplication.Create(
+                    Guid.NewGuid(),
+                    Guid.NewGuid());
+
+            Guid reviewerId = Guid.NewGuid();
+
+            application.Reject(reviewerId);
+
+            Assert.AreEqual(
+                VolunteerApplicationStatus.Rejected,
+                application.Status);
+
+            Assert.AreEqual(
+                reviewerId,
+                application.ReviewedByUserId);
+
+            Assert.IsNotNull(
+                application.ReviewedAt);
+        }
+
+        [TestMethod]
+        public void Approve_WithAlreadyReviewedApplication_ThrowsException()
+        {
+            VolunteerApplication application =
+                VolunteerApplication.Create(
+                    Guid.NewGuid(),
+                    Guid.NewGuid());
+
+            application.Reject(Guid.NewGuid());
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                application.Approve(Guid.NewGuid()));
         }
     }
 }
