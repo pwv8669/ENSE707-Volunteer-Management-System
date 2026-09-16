@@ -208,5 +208,166 @@ namespace Volunteer_Management_System.Tests
                 0,
                 service.GetAllOpportunities());
         }
+
+        [TestMethod]
+        public void PublishOpportunity_WithExistingOpportunity_PublishesOpportunity()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                service.CreateOpportunity(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            service.PublishOpportunity(opportunity.Id);
+
+            Assert.AreEqual(
+                OpportunityStatus.Published,
+                opportunity.Status);
+        }
+
+        [TestMethod]
+        public void PublishOpportunity_WithUnknownId_ThrowsException()
+        {
+            VolunteerOpportunityService service = new();
+
+            KeyNotFoundException exception =
+                Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                    service.PublishOpportunity(Guid.NewGuid()));
+
+            StringAssert.Contains(
+                exception.Message,
+                "was not found");
+        }
+
+        [TestMethod]
+        public void ArchiveOpportunity_WithPublishedOpportunity_ArchivesOpportunity()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                service.CreateOpportunity(
+                    "Tree Planting",
+                    "Plant native trees.",
+                    "Auckland",
+                    startTime,
+                    startTime.AddHours(3),
+                    "Gardening",
+                    8);
+
+            service.PublishOpportunity(opportunity.Id);
+            service.ArchiveOpportunity(opportunity.Id);
+
+            Assert.AreEqual(
+                OpportunityStatus.Archived,
+                opportunity.Status);
+        }
+
+        [TestMethod]
+        public void ArchiveOpportunity_WithUnknownId_ThrowsException()
+        {
+            VolunteerOpportunityService service = new();
+
+            KeyNotFoundException exception =
+                Assert.ThrowsExactly<KeyNotFoundException>(() =>
+                    service.ArchiveOpportunity(Guid.NewGuid()));
+
+            StringAssert.Contains(
+                exception.Message,
+                "was not found");
+        }
+
+        [TestMethod]
+        public void GetPublishedOpportunities_ReturnsOnlyPublishedItems()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity publishedOpportunity =
+                service.CreateOpportunity(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            service.CreateOpportunity(
+                "Food Drive",
+                "Collect donated food.",
+                "Auckland CBD",
+                startTime.AddDays(1),
+                startTime.AddDays(1).AddHours(2),
+                "Communication",
+                5);
+
+            service.PublishOpportunity(
+                publishedOpportunity.Id);
+
+            IReadOnlyList<VolunteerOpportunity> results =
+                service.GetPublishedOpportunities();
+
+            Assert.HasCount(1, results);
+            Assert.AreEqual(
+                publishedOpportunity.Id,
+                results[0].Id);
+            Assert.AreEqual(
+                OpportunityStatus.Published,
+                results[0].Status);
+        }
+
+        [TestMethod]
+        public void GetPublishedOpportunities_DoesNotReturnDraftOpportunity()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            service.CreateOpportunity(
+                "Food Drive",
+                "Collect donated food.",
+                "Auckland CBD",
+                startTime,
+                startTime.AddHours(2),
+                "Communication",
+                5);
+
+            IReadOnlyList<VolunteerOpportunity> results =
+                service.GetPublishedOpportunities();
+
+            Assert.HasCount(0, results);
+        }
+
+        [TestMethod]
+        public void GetPublishedOpportunities_DoesNotReturnArchivedOpportunity()
+        {
+            VolunteerOpportunityService service = new();
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                service.CreateOpportunity(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            service.PublishOpportunity(opportunity.Id);
+            service.ArchiveOpportunity(opportunity.Id);
+
+            IReadOnlyList<VolunteerOpportunity> results =
+                service.GetPublishedOpportunities();
+
+            Assert.HasCount(0, results);
+        }
     }
 }

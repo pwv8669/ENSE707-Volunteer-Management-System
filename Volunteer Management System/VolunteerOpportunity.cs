@@ -99,6 +99,28 @@ namespace Volunteer_Management_System
             VolunteersNeeded = volunteersNeeded;
         }
 
+        public void Publish()
+        {
+            if (Status != OpportunityStatus.Draft)
+            {
+                throw new InvalidOperationException(
+                    "Only draft opportunities can be published.");
+            }
+
+            Status = OpportunityStatus.Published;
+        }
+
+        public void Archive()
+        {
+            if (Status == OpportunityStatus.Archived)
+            {
+                throw new InvalidOperationException(
+                    "Opportunity is already archived.");
+            }
+
+            Status = OpportunityStatus.Archived;
+        }
+
         private static void ValidateDetails(
             string title,
             string description,

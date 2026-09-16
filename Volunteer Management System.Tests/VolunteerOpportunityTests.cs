@@ -171,5 +171,135 @@ namespace Volunteer_Management_System.Tests
                 OpportunityStatus.Draft,
                 opportunity.Status);
         }
+
+        [TestMethod]
+        public void Publish_WithDraftOpportunity_SetsPublishedStatus()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            opportunity.Publish();
+
+            Assert.AreEqual(
+                OpportunityStatus.Published,
+                opportunity.Status);
+        }
+
+        [TestMethod]
+        public void Archive_WithPublishedOpportunity_SetsArchivedStatus()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            opportunity.Publish();
+            opportunity.Archive();
+
+            Assert.AreEqual(
+                OpportunityStatus.Archived,
+                opportunity.Status);
+        }
+
+        [TestMethod]
+        public void Archive_WithDraftOpportunity_SetsArchivedStatus()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Food Drive",
+                    "Collect donated food.",
+                    "Auckland CBD",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Communication",
+                    5);
+
+            opportunity.Archive();
+
+            Assert.AreEqual(
+                OpportunityStatus.Archived,
+                opportunity.Status);
+        }
+
+        [TestMethod]
+        public void Publish_WithArchivedOpportunity_ThrowsException()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Beach Cleanup",
+                    "Clean the beach.",
+                    "Mission Bay",
+                    startTime,
+                    startTime.AddHours(2),
+                    "Teamwork",
+                    10);
+
+            opportunity.Archive();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                opportunity.Publish());
+        }
+
+        [TestMethod]
+        public void Publish_WithAlreadyPublishedOpportunity_ThrowsException()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Tree Planting",
+                    "Plant native trees.",
+                    "Western Springs",
+                    startTime,
+                    startTime.AddHours(3),
+                    "Gardening",
+                    8);
+
+            opportunity.Publish();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                opportunity.Publish());
+        }
+
+        [TestMethod]
+        public void Archive_WithAlreadyArchivedOpportunity_ThrowsException()
+        {
+            DateTime startTime = DateTime.UtcNow.AddDays(5);
+
+            VolunteerOpportunity opportunity =
+                VolunteerOpportunity.Create(
+                    "Community Event",
+                    "Help run the event.",
+                    "Auckland",
+                    startTime,
+                    startTime.AddHours(3),
+                    "Communication",
+                    6);
+
+            opportunity.Archive();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                opportunity.Archive());
+        }
     }
 }

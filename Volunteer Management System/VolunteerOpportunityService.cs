@@ -37,6 +37,15 @@ namespace Volunteer_Management_System
             return _opportunities.AsReadOnly();
         }
 
+        public IReadOnlyList<VolunteerOpportunity> GetPublishedOpportunities()
+        {
+            return _opportunities
+                .Where(opportunity =>
+                    opportunity.Status == OpportunityStatus.Published)
+                .ToList()
+                .AsReadOnly();
+        }
+
         public VolunteerOpportunity? FindOpportunityById(Guid opportunityId)
         {
             return _opportunities.FirstOrDefault(
@@ -53,14 +62,8 @@ namespace Volunteer_Management_System
             string requiredSkills,
             int volunteersNeeded)
         {
-            VolunteerOpportunity? opportunity =
-                FindOpportunityById(opportunityId);
-
-            if (opportunity == null)
-            {
-                throw new KeyNotFoundException(
-                    "Volunteer opportunity was not found.");
-            }
+            VolunteerOpportunity opportunity =
+                GetOpportunityOrThrow(opportunityId);
 
             opportunity.UpdateDetails(
                 title,
@@ -70,6 +73,22 @@ namespace Volunteer_Management_System
                 endDateTime,
                 requiredSkills,
                 volunteersNeeded);
+        }
+
+        public void PublishOpportunity(Guid opportunityId)
+        {
+            VolunteerOpportunity opportunity =
+                GetOpportunityOrThrow(opportunityId);
+
+            opportunity.Publish();
+        }
+
+        public void ArchiveOpportunity(Guid opportunityId)
+        {
+            VolunteerOpportunity opportunity =
+                GetOpportunityOrThrow(opportunityId);
+
+            opportunity.Archive();
         }
 
         public bool DeleteOpportunity(Guid opportunityId)
@@ -83,6 +102,21 @@ namespace Volunteer_Management_System
             }
 
             return _opportunities.Remove(opportunity);
+        }
+
+        private VolunteerOpportunity GetOpportunityOrThrow(
+            Guid opportunityId)
+        {
+            VolunteerOpportunity? opportunity =
+                FindOpportunityById(opportunityId);
+
+            if (opportunity == null)
+            {
+                throw new KeyNotFoundException(
+                    "Volunteer opportunity was not found.");
+            }
+
+            return opportunity;
         }
     }
 }
