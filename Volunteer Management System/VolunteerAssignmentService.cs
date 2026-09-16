@@ -8,9 +8,12 @@ namespace Volunteer_Management_System
     {
         private readonly VolunteerOpportunityService _opportunityService;
         private readonly VolunteerApplicationService _applicationService;
+        private readonly VolunteerAvailabilityService? _availabilityService;
 
         private readonly List<VolunteerAssignment> _assignments = new();
 
+        // Constructor used by the existing Feature 4 tests.
+        // Availability checking is optional here.
         public VolunteerAssignmentService(
             VolunteerOpportunityService opportunityService,
             VolunteerApplicationService applicationService)
@@ -24,6 +27,30 @@ namespace Volunteer_Management_System
                 applicationService
                 ?? throw new ArgumentNullException(
                     nameof(applicationService));
+
+            _availabilityService = null;
+        }
+
+        // Constructor used when availability checking is required.
+        public VolunteerAssignmentService(
+            VolunteerOpportunityService opportunityService,
+            VolunteerApplicationService applicationService,
+            VolunteerAvailabilityService availabilityService)
+        {
+            _opportunityService =
+                opportunityService
+                ?? throw new ArgumentNullException(
+                    nameof(opportunityService));
+
+            _applicationService =
+                applicationService
+                ?? throw new ArgumentNullException(
+                    nameof(applicationService));
+
+            _availabilityService =
+                availabilityService
+                ?? throw new ArgumentNullException(
+                    nameof(availabilityService));
         }
 
         public IReadOnlyList<VolunteerApplication>
@@ -85,36 +112,17 @@ namespace Volunteer_Management_System
                     "to published opportunities.");
             }
 
-            int activeAssignments =
-                _assignments.Count(assignment =>
-                    assignment.OpportunityId ==
-                        opportunity.Id &&
-                    assignment.Status ==
-                        AssignmentStatus.Assigned);
+            ValidateCapacity(opportunity);
 
-            if (activeAssignments >=
-                opportunity.VolunteersNeeded)
-            {
-                throw new InvalidOperationException(
-                    "This opportunity has reached " +
-                    "its volunteer capacity.");
-            }
+            ValidateNotAlreadyAssigned(application);
 
-            bool alreadyAssigned =
-                _assignments.Any(assignment =>
-                    assignment.VolunteerId ==
-                        application.VolunteerId &&
-                    assignment.OpportunityId ==
-                        application.OpportunityId &&
-                    assignment.Status ==
-                        AssignmentStatus.Assigned);
+            ValidateAvailability(
+                application.VolunteerId,
+                opportunity);
 
-            if (alreadyAssigned)
-            {
-                throw new InvalidOperationException(
-                    "Volunteer is already assigned " +
-                    "to this opportunity.");
-            }
+            ValidateNoAssignmentConflict(
+                application.VolunteerId,
+                opportunity);
 
             VolunteerAssignment assignment =
                 VolunteerAssignment.Create(
@@ -178,6 +186,25 @@ namespace Volunteer_Management_System
                     assignment.Id == assignmentId);
         }
 
+        public int GetRemainingCapacity(
+            Guid opportunityId)
+        {
+            VolunteerOpportunity opportunity =
+                GetOpportunityOrThrow(opportunityId);
+
+            int assignedCount =
+                _assignments.Count(assignment =>
+                    assignment.OpportunityId ==
+                        opportunityId &&
+                    assignment.Status ==
+                        AssignmentStatus.Assigned);
+
+            return Math.Max(
+                0,
+                opportunity.VolunteersNeeded -
+                assignedCount);
+        }
+
         public void CancelAssignment(
             User reviewer,
             Guid assignmentId)
@@ -194,6 +221,106 @@ namespace Volunteer_Management_System
             }
 
             assignment.Cancel();
+        }
+
+        private void ValidateCapacity(
+            VolunteerOpportunity opportunity)
+        {
+            int activeAssignments =
+                _assignments.Count(assignment =>
+                    assignment.OpportunityId ==
+                        opportunity.Id &&
+                    assignment.Status ==
+                        AssignmentStatus.Assigned);
+
+            if (activeAssignments >=
+                opportunity.VolunteersNeeded)
+            {
+                throw new InvalidOperationException(
+                    "This opportunity has reached " +
+                    "its volunteer capacity.");
+            }
+        }
+
+        private void ValidateNotAlreadyAssigned(
+            VolunteerApplication application)
+        {
+            bool alreadyAssigned =
+                _assignments.Any(assignment =>
+                    assignment.VolunteerId ==
+                        application.VolunteerId &&
+                    assignment.OpportunityId ==
+                        application.OpportunityId &&
+                    assignment.Status ==
+                        AssignmentStatus.Assigned);
+
+            if (alreadyAssigned)
+            {
+                throw new InvalidOperationException(
+                    "Volunteer is already assigned " +
+                    "to this opportunity.");
+            }
+        }
+
+        private void ValidateAvailability(
+            Guid volunteerId,
+            VolunteerOpportunity opportunity)
+        {
+            // If the service was created without an availability
+            // service, retain the behaviour from the previous commit.
+            if (_availabilityService == null)
+            {
+                return;
+            }
+
+            bool available =
+                _availabilityService.IsVolunteerAvailable(
+                    volunteerId,
+                    opportunity.StartDateTime,
+                    opportunity.EndDateTime);
+
+            if (!available)
+            {
+                throw new InvalidOperationException(
+                    "Volunteer is not available " +
+                    "during this opportunity.");
+            }
+        }
+
+        private void ValidateNoAssignmentConflict(
+            Guid volunteerId,
+            VolunteerOpportunity newOpportunity)
+        {
+            IReadOnlyList<VolunteerAssignment>
+                volunteerAssignments =
+                    GetAssignmentsForVolunteer(
+                        volunteerId);
+
+            foreach (VolunteerAssignment assignment
+                in volunteerAssignments)
+            {
+                VolunteerOpportunity? existingOpportunity =
+                    _opportunityService.FindOpportunityById(
+                        assignment.OpportunityId);
+
+                if (existingOpportunity == null)
+                {
+                    continue;
+                }
+
+                bool overlaps =
+                    newOpportunity.StartDateTime <
+                        existingOpportunity.EndDateTime &&
+                    newOpportunity.EndDateTime >
+                        existingOpportunity.StartDateTime;
+
+                if (overlaps)
+                {
+                    throw new InvalidOperationException(
+                        "Volunteer already has an " +
+                        "overlapping assignment.");
+                }
+            }
         }
 
         private VolunteerApplication GetApplicationOrThrow(
