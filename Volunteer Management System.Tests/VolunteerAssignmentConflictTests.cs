@@ -12,7 +12,6 @@ namespace Volunteer_Management_System.Tests
             return User.Create(
                 "volunteer",
                 "volunteer@example.com",
-                "Password123!",
                 Role.Volunteer);
         }
 
@@ -21,7 +20,6 @@ namespace Volunteer_Management_System.Tests
             return User.Create(
                 "coordinator",
                 "coordinator@example.com",
-                "Password123!",
                 Role.Coordinator);
         }
 

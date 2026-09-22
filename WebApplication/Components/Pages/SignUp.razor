@@ -48,8 +48,18 @@
 				return;
 			}
 
-			var user = User.Create(Username, Email, Password, Role.Volunteer);
-			Users.Add(user);
+			if (string.IsNullOrEmpty(Password) || Password.Length < 8)
+			{
+				Error = "Password must be at least 8 characters.";
+				return;
+			}
+
+			var user = User.Create(Username, normalizedEmail, Role.Volunteer);
+			if (!Users.Add(user, Password))
+			{
+				Error = "An account with that email already exists.";
+				return;
+			}
 			Auth.SignIn(user);
 			Nav.NavigateTo("/");
 		}

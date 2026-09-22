@@ -42,7 +42,7 @@
 			return;
 		}
 
-		if (!user.VerifyPassword(Password))
+		if (!Users.VerifyPassword(user, Password))
 		{
 			Error = "Invalid password.";
 			return;

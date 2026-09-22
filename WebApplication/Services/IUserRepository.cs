@@ -5,6 +5,7 @@ namespace WebApplication.Services
     public interface IUserRepository
     {
         User? FindByEmail(string email);
-        void Add(User user);
+        bool Add(User user, string password);
+        bool VerifyPassword(User user, string password);
     }
 }

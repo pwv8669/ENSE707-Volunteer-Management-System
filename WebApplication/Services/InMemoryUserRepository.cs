@@ -1,34 +1,49 @@
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Identity;
 using Volunteer_Management_System;
 
 namespace WebApplication.Services
 {
     public class InMemoryUserRepository : IUserRepository
     {
-        private readonly ConcurrentDictionary<string, User> _byEmail = new(StringComparer.OrdinalIgnoreCase);
+        // Keep hashes in this temporary store; User only carries identity and role data.
+        private readonly ConcurrentDictionary<string, (User User, string PasswordHash)> _byEmail = new(StringComparer.OrdinalIgnoreCase);
+        private readonly PasswordHasher<User> _passwordHasher = new();
 
         private static string NormalizeEmail(string? email) => string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
 
         public InMemoryUserRepository()
         {
             // Seed a test user: password = TestPass123
-            var u = User.Create("test", "test@example.com", "TestPass123", Role.Volunteer);
-            _byEmail.TryAdd(u.Email, u);
+            var u = User.Create("test", "test@example.com", Role.Volunteer);
+            Add(u, "TestPass123");
         }
 
         public User? FindByEmail(string email)
         {
             var key = NormalizeEmail(email);
             if (string.IsNullOrEmpty(key)) return null;
-            _byEmail.TryGetValue(key, out var user);
-            return user;
+            return _byEmail.TryGetValue(key, out var entry) ? entry.User : null;
         }
 
-        public void Add(User user)
+        public bool Add(User user, string password)
         {
-            var key = NormalizeEmail(user?.Email);
-            if (string.IsNullOrEmpty(key)) return;
-            _byEmail.TryAdd(key, user);
+            ArgumentNullException.ThrowIfNull(user);
+            var key = NormalizeEmail(user.Email);
+            if (string.IsNullOrEmpty(key)) return false;
+
+            var passwordHash = _passwordHasher.HashPassword(user, password);
+            return _byEmail.TryAdd(key, (user, passwordHash));
+        }
+
+        public bool VerifyPassword(User user, string password)
+        {
+            ArgumentNullException.ThrowIfNull(user);
+            var key = NormalizeEmail(user.Email);
+            return _byEmail.TryGetValue(key, out var entry)
+                && ReferenceEquals(entry.User, user)
+                && _passwordHasher.VerifyHashedPassword(user, entry.PasswordHash, password)
+                    != PasswordVerificationResult.Failed;
         }
     }
 }
