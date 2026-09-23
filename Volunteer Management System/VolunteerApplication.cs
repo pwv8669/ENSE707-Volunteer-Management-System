@@ -1,7 +1,22 @@
-﻿using System;
+﻿
+// Purpose:
+// Represents an application submitted by a volunteer for a volunteer
+// opportunity.
+//
+// The class stores which volunteer applied, which opportunity they applied
+// for, the current application status, and review information.
+//
+// It also manages application status changes such as approval and rejection.
+
+
+using System;
 
 namespace Volunteer_Management_System
 {
+    // Defines the possible states of a volunteer application.
+    // Pending  = waiting for review.
+    // Approved = accepted by a coordinator or administrator.
+    // Rejected = declined during the review process.
     public enum VolunteerApplicationStatus
     {
         Pending,
@@ -9,6 +24,7 @@ namespace Volunteer_Management_System
         Rejected
     }
 
+    // Represents a volunteer's application for one volunteer opportunity.
     public class VolunteerApplication
     {
         public Guid Id { get; init; }
@@ -25,10 +41,14 @@ namespace Volunteer_Management_System
 
         public Guid? ReviewedByUserId { get; private set; }
 
+        // Private constructor ensures applications are created through
+        // the Create method so required IDs are validated first.
         private VolunteerApplication()
         {
         }
 
+        // Creates a new volunteer application.
+        // A newly submitted application always starts with Pending status.
         public static VolunteerApplication Create(
             Guid volunteerId,
             Guid opportunityId)
@@ -57,6 +77,8 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Approves a Pending application and records who reviewed it
+        // and when the review occurred.
         public void Approve(Guid reviewedByUserId)
         {
             ValidateReview(reviewedByUserId);
@@ -66,6 +88,8 @@ namespace Volunteer_Management_System
             ReviewedAt = DateTime.UtcNow;
         }
 
+        // Rejects a Pending application and records who reviewed it
+        // and when the review occurred.
         public void Reject(Guid reviewedByUserId)
         {
             ValidateReview(reviewedByUserId);
@@ -75,6 +99,9 @@ namespace Volunteer_Management_System
             ReviewedAt = DateTime.UtcNow;
         }
 
+        // Validates an application review before approval or rejection.
+        // Only Pending applications can be reviewed, and a valid reviewer
+        // ID must be supplied.
         private void ValidateReview(Guid reviewedByUserId)
         {
             if (reviewedByUserId == Guid.Empty)

@@ -1,12 +1,29 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for VolunteerAssignmentService.
+//
+// These tests verify the main volunteer assignment workflow, including:
+// - Viewing pending applications.
+// - Approving and assigning volunteers.
+// - Allowing Coordinator and Admin users to assign volunteers.
+// - Preventing Volunteers from reviewing applications.
+// - Rejecting applications.
+// - Enforcing opportunity capacity.
+// - Freeing capacity when assignments are cancelled.
+// - Retrieving assignments for a volunteer.
+
+
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the business rules provided by VolunteerAssignmentService.
     [TestClass]
     public class VolunteerAssignmentServiceTests
     {
+        // Creates a Volunteer user for assignment-related tests.
         private static User CreateVolunteer(
             string username)
         {
@@ -16,6 +33,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Volunteer);
         }
 
+        // Creates a Coordinator user who is allowed to review
+        // applications and manage assignments.
         private static User CreateCoordinator()
         {
             return User.Create(
@@ -24,6 +43,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Coordinator);
         }
 
+        // Creates an Admin user who is also allowed to review
+        // applications and manage assignments.
         private static User CreateAdmin()
         {
             return User.Create(
@@ -32,6 +53,11 @@ namespace Volunteer_Management_System.Tests
                 Role.Admin);
         }
 
+        // Creates and publishes a volunteer opportunity for tests that
+        // require an active opportunity.
+        //
+        // The number of required volunteers can be changed to test
+        // assignment capacity limits.
         private static VolunteerOpportunity
             CreatePublishedOpportunity(
                 VolunteerOpportunityService opportunityService,
@@ -56,6 +82,8 @@ namespace Volunteer_Management_System.Tests
             return opportunity;
         }
 
+        // Verifies that Pending applications for a specific opportunity
+        // can be retrieved by the assignment service.
         [TestMethod]
         public void GetPendingApplicationsForOpportunity_ReturnsPendingApplications()
         {
@@ -92,6 +120,8 @@ namespace Volunteer_Management_System.Tests
                 results[0].Status);
         }
 
+        // Verifies that a Coordinator can approve a Pending application
+        // and create an active volunteer assignment.
         [TestMethod]
         public void ApproveAndAssign_WithCoordinator_CreatesAssignment()
         {
@@ -142,6 +172,8 @@ namespace Volunteer_Management_System.Tests
                 application.ReviewedByUserId);
         }
 
+        // Verifies that an Admin can also approve an application
+        // and create a volunteer assignment.
         [TestMethod]
         public void ApproveAndAssign_WithAdmin_CreatesAssignment()
         {
@@ -177,6 +209,8 @@ namespace Volunteer_Management_System.Tests
                 assignment.Status);
         }
 
+        // Verifies that a Volunteer user is not authorised to review
+        // applications or assign other volunteers.
         [TestMethod]
         public void ApproveAndAssign_WithVolunteerReviewer_ThrowsUnauthorizedAccessException()
         {
@@ -211,6 +245,8 @@ namespace Volunteer_Management_System.Tests
                     application.Id));
         }
 
+        // Verifies that a Coordinator can reject a Pending application
+        // and that rejection does not create a volunteer assignment.
         [TestMethod]
         public void RejectApplication_WithCoordinator_SetsRejectedStatus()
         {
@@ -254,6 +290,8 @@ namespace Volunteer_Management_System.Tests
                         opportunity.Id));
         }
 
+        // Verifies that an opportunity cannot receive more active
+        // assignments than the number of volunteers it requires.
         [TestMethod]
         public void ApproveAndAssign_WhenCapacityReached_ThrowsException()
         {
@@ -306,6 +344,8 @@ namespace Volunteer_Management_System.Tests
                 "capacity");
         }
 
+        // Verifies that cancelling an active assignment frees its place,
+        // allowing another volunteer to be assigned to the opportunity.
         [TestMethod]
         public void CancelAssignment_FreesOpportunityCapacity()
         {
@@ -368,6 +408,8 @@ namespace Volunteer_Management_System.Tests
                         opportunity.Id));
         }
 
+        // Verifies that active assignments belonging to a specific
+        // volunteer can be retrieved correctly.
         [TestMethod]
         public void GetAssignmentsForVolunteer_ReturnsTheirAssignments()
         {

@@ -1,12 +1,24 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for the VolunteerApplication model.
+//
+// These tests verify application creation, required IDs, approval and
+// rejection behaviour, review information, and protection against reviewing
+// an application more than once.
+
+
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the core behaviour of the VolunteerApplication model.
     [TestClass]
     public class VolunteerApplicationTests
     {
+        // Verifies that valid volunteer and opportunity IDs create a new
+        // Pending application without review information.
         [TestMethod]
         public void Create_WithValidIds_CreatesPendingApplication()
         {
@@ -38,6 +50,8 @@ namespace Volunteer_Management_System.Tests
             Assert.IsNull(application.ReviewedByUserId);
         }
 
+        // Verifies that an application cannot be created without a valid
+        // volunteer ID.
         [TestMethod]
         public void Create_WithEmptyVolunteerId_ThrowsArgumentException()
         {
@@ -47,6 +61,8 @@ namespace Volunteer_Management_System.Tests
                     Guid.NewGuid()));
         }
 
+        // Verifies that an application cannot be created without a valid
+        // opportunity ID.
         [TestMethod]
         public void Create_WithEmptyOpportunityId_ThrowsArgumentException()
         {
@@ -56,6 +72,8 @@ namespace Volunteer_Management_System.Tests
                     Guid.Empty));
         }
 
+        // Verifies that approving a Pending application changes its status
+        // and stores the reviewer information.
         [TestMethod]
         public void Approve_WithPendingApplication_SetsApprovedStatus()
         {
@@ -80,6 +98,8 @@ namespace Volunteer_Management_System.Tests
                 application.ReviewedAt);
         }
 
+        // Verifies that rejecting a Pending application changes its status
+        // and stores the reviewer information.
         [TestMethod]
         public void Reject_WithPendingApplication_SetsRejectedStatus()
         {
@@ -104,6 +124,8 @@ namespace Volunteer_Management_System.Tests
                 application.ReviewedAt);
         }
 
+        // Verifies that an application that has already been reviewed cannot
+        // be approved or reviewed again.
         [TestMethod]
         public void Approve_WithAlreadyReviewedApplication_ThrowsException()
         {

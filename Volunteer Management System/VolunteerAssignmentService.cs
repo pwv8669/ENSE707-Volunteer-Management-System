@@ -1,19 +1,43 @@
-﻿using System;
+﻿// Purpose:
+// Provides the main operations for reviewing volunteer applications and
+// assigning approved volunteers to opportunities.
+//
+// This service handles:
+// - Viewing pending applications for an opportunity.
+// - Approving applications and creating assignments.
+// - Rejecting applications.
+// - Checking opportunity capacity.
+// - Preventing duplicate assignments.
+// - Checking volunteer availability.
+// - Preventing overlapping assignments.
+// - Retrieving and cancelling assignments.
+
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Volunteer_Management_System
 {
+    // Handles application review and volunteer assignment business rules.
     public class VolunteerAssignmentService
     {
+        // Provides access to volunteer opportunities and their details.
         private readonly VolunteerOpportunityService _opportunityService;
+
+        // Provides access to submitted volunteer applications.
         private readonly VolunteerApplicationService _applicationService;
+
+        // Optional availability service used when availability checking
+        // should be enforced during assignment.
         private readonly VolunteerAvailabilityService? _availabilityService;
 
+        // Stores volunteer assignments currently managed by this service.
         private readonly List<VolunteerAssignment> _assignments = new();
 
-        // Constructor used by the existing Feature 4 tests.
-        // Availability checking is optional here.
+        // Creates the assignment service without availability checking.
+        // This constructor supports assignment workflows where availability
+        // information has not been supplied.
         public VolunteerAssignmentService(
             VolunteerOpportunityService opportunityService,
             VolunteerApplicationService applicationService)
@@ -31,7 +55,9 @@ namespace Volunteer_Management_System
             _availabilityService = null;
         }
 
-        // Constructor used when availability checking is required.
+        // Creates the assignment service with availability checking enabled.
+        // The supplied availability service is used before approving and
+        // assigning a volunteer.
         public VolunteerAssignmentService(
             VolunteerOpportunityService opportunityService,
             VolunteerApplicationService applicationService,
@@ -53,6 +79,8 @@ namespace Volunteer_Management_System
                     nameof(availabilityService));
         }
 
+        // Returns all Pending applications submitted for a specific
+        // volunteer opportunity.
         public IReadOnlyList<VolunteerApplication>
             GetPendingApplicationsForOpportunity(
                 Guid opportunityId)
@@ -84,6 +112,16 @@ namespace Volunteer_Management_System
                 .AsReadOnly();
         }
 
+        // Approves a Pending volunteer application and creates an assignment.
+        //
+        // Before creating the assignment, the method checks:
+        // - The reviewer has permission to approve applications.
+        // - The application exists and is still Pending.
+        // - The opportunity exists and is Published.
+        // - The opportunity has remaining capacity.
+        // - The volunteer is not already assigned to the opportunity.
+        // - The volunteer is available, when availability checking is enabled.
+        // - The assignment does not overlap another active assignment.
         public VolunteerAssignment ApproveAndAssign(
             User reviewer,
             Guid applicationId)
@@ -138,6 +176,8 @@ namespace Volunteer_Management_System
             return assignment;
         }
 
+        // Rejects a volunteer application after validating that the reviewer
+        // has permission to review applications.
         public void RejectApplication(
             User reviewer,
             Guid applicationId)
@@ -150,6 +190,7 @@ namespace Volunteer_Management_System
             application.Reject(reviewer.Id);
         }
 
+        // Returns all active assignments for a specific opportunity.
         public IReadOnlyList<VolunteerAssignment>
             GetAssignmentsForOpportunity(
                 Guid opportunityId)
@@ -164,6 +205,7 @@ namespace Volunteer_Management_System
                 .AsReadOnly();
         }
 
+        // Returns all active assignments belonging to a specific volunteer.
         public IReadOnlyList<VolunteerAssignment>
             GetAssignmentsForVolunteer(
                 Guid volunteerId)
@@ -178,6 +220,8 @@ namespace Volunteer_Management_System
                 .AsReadOnly();
         }
 
+        // Searches for an assignment using its unique ID.
+        // Returns null when no matching assignment exists.
         public VolunteerAssignment? FindAssignmentById(
             Guid assignmentId)
         {
@@ -186,6 +230,8 @@ namespace Volunteer_Management_System
                     assignment.Id == assignmentId);
         }
 
+        // Calculates how many volunteer positions remain available
+        // for a specific opportunity.
         public int GetRemainingCapacity(
             Guid opportunityId)
         {
@@ -205,6 +251,8 @@ namespace Volunteer_Management_System
                 assignedCount);
         }
 
+        // Cancels an existing assignment.
+        // Only a Coordinator or Admin can perform this operation.
         public void CancelAssignment(
             User reviewer,
             Guid assignmentId)
@@ -223,6 +271,8 @@ namespace Volunteer_Management_System
             assignment.Cancel();
         }
 
+        // Checks whether the opportunity still has available volunteer
+        // positions before another assignment is created.
         private void ValidateCapacity(
             VolunteerOpportunity opportunity)
         {
@@ -242,6 +292,8 @@ namespace Volunteer_Management_System
             }
         }
 
+        // Prevents the same volunteer from being actively assigned to
+        // the same opportunity more than once.
         private void ValidateNotAlreadyAssigned(
             VolunteerApplication application)
         {
@@ -262,12 +314,15 @@ namespace Volunteer_Management_System
             }
         }
 
+        // Checks whether a volunteer is available for the full duration
+        // of the opportunity.
+        //
+        // If no availability service was supplied when this service was
+        // created, this validation is skipped.
         private void ValidateAvailability(
             Guid volunteerId,
             VolunteerOpportunity opportunity)
         {
-            // If the service was created without an availability
-            // service, retain the behaviour from the previous commit.
             if (_availabilityService == null)
             {
                 return;
@@ -287,6 +342,8 @@ namespace Volunteer_Management_System
             }
         }
 
+        // Prevents a volunteer from being assigned to two opportunities
+        // whose date and time ranges overlap.
         private void ValidateNoAssignmentConflict(
             Guid volunteerId,
             VolunteerOpportunity newOpportunity)
@@ -323,6 +380,8 @@ namespace Volunteer_Management_System
             }
         }
 
+        // Retrieves an application when an operation requires it to exist.
+        // Throws an exception if the application cannot be found.
         private VolunteerApplication GetApplicationOrThrow(
             Guid applicationId)
         {
@@ -339,6 +398,8 @@ namespace Volunteer_Management_System
             return application;
         }
 
+        // Retrieves an opportunity when an operation requires it to exist.
+        // Throws an exception if the opportunity cannot be found.
         private VolunteerOpportunity GetOpportunityOrThrow(
             Guid opportunityId)
         {
@@ -355,6 +416,8 @@ namespace Volunteer_Management_System
             return opportunity;
         }
 
+        // Ensures that only Coordinators or Admin users are allowed to
+        // review applications or manage volunteer assignments.
         private static void ValidateReviewer(
             User reviewer)
         {

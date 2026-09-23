@@ -1,7 +1,17 @@
-﻿using System;
+﻿
+// Purpose:
+// Represents a period of time when a volunteer is available to participate
+// in volunteer opportunities.
+//
+// The class stores the volunteer ID, availability start and end times,
+// creation time, and provides methods to check or update availability.
+
+
+using System;
 
 namespace Volunteer_Management_System
 {
+    // Represents one availability time period for a volunteer.
     public class VolunteerAvailability
     {
         public Guid Id { get; init; }
@@ -14,10 +24,16 @@ namespace Volunteer_Management_System
 
         public DateTime CreatedAt { get; init; }
 
+        // Private constructor ensures availability records are created
+        // through the Create method so the values are validated first.
         private VolunteerAvailability()
         {
         }
 
+        // Creates a new availability period for a volunteer.
+        //
+        // The method verifies that a valid volunteer ID is provided and
+        // that the availability end time occurs after the start time.
         public static VolunteerAvailability Create(
             Guid volunteerId,
             DateTime availableFrom,
@@ -47,6 +63,8 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Checks whether this availability period fully covers a specified
+        // opportunity or event time range.
         public bool Covers(
             DateTime startDateTime,
             DateTime endDateTime)
@@ -55,6 +73,8 @@ namespace Volunteer_Management_System
                    endDateTime <= AvailableTo;
         }
 
+        // Updates an existing availability period.
+        // The new end time must occur after the new start time.
         public void Update(
             DateTime availableFrom,
             DateTime availableTo)

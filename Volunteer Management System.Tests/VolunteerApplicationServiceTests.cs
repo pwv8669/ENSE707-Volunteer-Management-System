@@ -1,13 +1,28 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for VolunteerApplicationService.
+//
+// These tests verify the complete volunteer application workflow, including:
+// browsing published opportunities, submitting applications, role validation,
+// preventing duplicate applications, retrieving applications and checking
+// application status.
+//
+// The tests also verify that volunteers cannot apply to Draft or Archived
+// opportunities and cannot access another volunteer's application status.
+
+
+using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the business rules provided by VolunteerApplicationService.
     [TestClass]
     public class VolunteerApplicationServiceTests
     {
+        // Creates a Volunteer user for use across application service tests.
         private static User CreateVolunteer(
             string username = "volunteer1")
         {
@@ -17,6 +32,7 @@ namespace Volunteer_Management_System.Tests
                 Role.Volunteer);
         }
 
+        // Creates a Coordinator user for testing role restrictions.
         private static User CreateCoordinator()
         {
             return User.Create(
@@ -25,6 +41,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Coordinator);
         }
 
+        // Creates and publishes a volunteer opportunity for tests that
+        // require an opportunity that is available for applications.
         private static VolunteerOpportunity CreatePublishedOpportunity(
             VolunteerOpportunityService opportunityService,
             string title = "Beach Cleanup")
@@ -48,6 +66,8 @@ namespace Volunteer_Management_System.Tests
             return opportunity;
         }
 
+        // Verifies that volunteers browsing available opportunities receive
+        // opportunities whose status is Published.
         [TestMethod]
         public void BrowseAvailableOpportunities_ReturnsPublishedOpportunities()
         {
@@ -75,6 +95,8 @@ namespace Volunteer_Management_System.Tests
                 results[0].Status);
         }
 
+        // Verifies that Draft opportunities are hidden when volunteers
+        // browse opportunities available for applications.
         [TestMethod]
         public void BrowseAvailableOpportunities_DoesNotReturnDrafts()
         {
@@ -102,6 +124,8 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(0, results);
         }
 
+        // Verifies that a Volunteer can submit an application for a
+        // Published opportunity and that it begins with Pending status.
         [TestMethod]
         public void SubmitApplication_WithPublishedOpportunity_CreatesPendingApplication()
         {
@@ -139,6 +163,7 @@ namespace Volunteer_Management_System.Tests
                 applicationService.GetAllApplications());
         }
 
+        // Verifies that a Coordinator cannot submit a volunteer application.
         [TestMethod]
         public void SubmitApplication_WithCoordinator_ThrowsUnauthorizedAccessException()
         {
@@ -165,6 +190,8 @@ namespace Volunteer_Management_System.Tests
                 "Only volunteers");
         }
 
+        // Verifies that an application cannot be submitted for an
+        // opportunity ID that does not exist.
         [TestMethod]
         public void SubmitApplication_WithUnknownOpportunity_ThrowsKeyNotFoundException()
         {
@@ -187,6 +214,8 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Verifies that applications cannot be submitted for Draft
+        // opportunities because they are not yet available to volunteers.
         [TestMethod]
         public void SubmitApplication_WithDraftOpportunity_ThrowsInvalidOperationException()
         {
@@ -222,6 +251,8 @@ namespace Volunteer_Management_System.Tests
                 "published opportunities");
         }
 
+        // Verifies that applications cannot be submitted for opportunities
+        // that have already been Archived.
         [TestMethod]
         public void SubmitApplication_WithArchivedOpportunity_ThrowsInvalidOperationException()
         {
@@ -251,6 +282,8 @@ namespace Volunteer_Management_System.Tests
                 "published opportunities");
         }
 
+        // Verifies that a volunteer cannot submit multiple applications
+        // for the same opportunity.
         [TestMethod]
         public void SubmitApplication_WhenAlreadyApplied_ThrowsInvalidOperationException()
         {
@@ -281,6 +314,8 @@ namespace Volunteer_Management_System.Tests
                 "already applied");
         }
 
+        // Verifies that retrieving applications for a volunteer returns
+        // only applications belonging to that volunteer.
         [TestMethod]
         public void GetApplicationsForVolunteer_ReturnsOnlyTheirApplications()
         {
@@ -318,6 +353,8 @@ namespace Volunteer_Management_System.Tests
                 results[0].VolunteerId);
         }
 
+        // Verifies that an existing application can be found using its
+        // unique application ID.
         [TestMethod]
         public void FindApplicationById_WithExistingApplication_ReturnsApplication()
         {
@@ -349,6 +386,8 @@ namespace Volunteer_Management_System.Tests
                 found.Id);
         }
 
+        // Verifies that a volunteer can retrieve the Pending status of
+        // their own application.
         [TestMethod]
         public void GetApplicationStatus_WithOwnApplication_ReturnsPending()
         {
@@ -379,6 +418,8 @@ namespace Volunteer_Management_System.Tests
                 status);
         }
 
+        // Verifies that one volunteer cannot view another volunteer's
+        // application status.
         [TestMethod]
         public void GetApplicationStatus_WithAnotherVolunteersApplication_ThrowsUnauthorizedAccessException()
         {
@@ -413,6 +454,8 @@ namespace Volunteer_Management_System.Tests
                 "their own application");
         }
 
+        // Verifies that requesting the status of an application that does
+        // not exist results in a KeyNotFoundException.
         [TestMethod]
         public void GetApplicationStatus_WithUnknownApplication_ThrowsKeyNotFoundException()
         {
