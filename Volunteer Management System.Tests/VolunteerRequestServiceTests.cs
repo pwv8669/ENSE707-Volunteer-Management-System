@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
+// This class contains unit tests for the VolunteerRequestService class in the Volunteer Management System.
 namespace Volunteer_Management_System.Tests
 {
     [TestClass]
     public class VolunteerRequestServiceTests
     {
+        // Test that submitting a request with valid ids stores it in the service.
         [TestMethod]
         public void SubmitRequest_WithValidIds_StoresRequest()
         {
@@ -25,6 +27,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(submittedRequest.Id, requests[0].Id);
         }
 
+        // Test that looking up an existing request by id returns that request.
         [TestMethod]
         public void FindRequestById_WithExistingId_ReturnsRequest()
         {
@@ -40,6 +43,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(submittedRequest.Id, foundRequest.Id);
         }
 
+        // Test that looking up an unknown id returns null.
         [TestMethod]
         public void FindRequestById_WithUnknownId_ReturnsNull()
         {
@@ -51,6 +55,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsNull(result);
         }
 
+        // Test that getting requests for an opportunity only returns requests for that opportunity.
         [TestMethod]
         public void GetRequestsForOpportunity_WithMultipleOpportunities_ReturnsMatchingOnly()
         {
@@ -67,6 +72,7 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(2, requests);
         }
 
+        // Test that getting requests for a volunteer only returns that volunteer's requests.
         [TestMethod]
         public void GetRequestsForVolunteer_WithMultipleVolunteers_ReturnsMatchingOnly()
         {
@@ -83,6 +89,7 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(2, requests);
         }
 
+        // Test that fulfilling an existing request through the service sets its status to Fulfilled.
         [TestMethod]
         public void FulfillRequest_WithExistingId_SetsFulfilledStatus()
         {
@@ -101,6 +108,7 @@ namespace Volunteer_Management_System.Tests
                 updatedRequest.Status);
         }
 
+        // Test that fulfilling an unknown request throws a KeyNotFoundException.
         [TestMethod]
         public void FulfillRequest_WithUnknownId_ThrowsException()
         {
@@ -115,6 +123,7 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Test that declining an existing request through the service sets its status to Declined.
         [TestMethod]
         public void DeclineRequest_WithExistingId_SetsDeclinedStatus()
         {
@@ -133,6 +142,7 @@ namespace Volunteer_Management_System.Tests
                 updatedRequest.Status);
         }
 
+        // Test that declining an unknown request throws a KeyNotFoundException.
         [TestMethod]
         public void DeclineRequest_WithUnknownId_ThrowsException()
         {
@@ -147,6 +157,7 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Test that logging hours through the service on a fulfilled request records them on the request.
         [TestMethod]
         public void LogHours_WithExistingFulfilledRequest_AccumulatesHours()
         {
@@ -164,6 +175,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(4.0, updatedRequest.HoursLogged);
         }
 
+        // Test that logging hours on an unknown request throws a KeyNotFoundException.
         [TestMethod]
         public void LogHours_WithUnknownId_ThrowsException()
         {

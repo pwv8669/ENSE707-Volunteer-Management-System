@@ -1,11 +1,13 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
+// This class contains unit tests for the VolunteerRequest class in the Volunteer Management System.
 namespace Volunteer_Management_System.Tests
 {
     [TestClass]
     public class VolunteerRequestTests
     {
+        // Test that creating a request with valid ids gives a new pending request with no response time and no hours.
         [TestMethod]
         public void Create_WithValidIds_CreatesPendingRequest()
         {
@@ -25,6 +27,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(0.0, request.HoursLogged);
         }
 
+        // Test that creating a request with an empty volunteer id throws an ArgumentException.
         [TestMethod]
         public void Create_WithEmptyVolunteerId_ThrowsArgumentException()
         {
@@ -37,6 +40,7 @@ namespace Volunteer_Management_System.Tests
                 "Volunteer id is required");
         }
 
+        // Test that creating a request with an empty opportunity id throws an ArgumentException.
         [TestMethod]
         public void Create_WithEmptyOpportunityId_ThrowsArgumentException()
         {
@@ -49,6 +53,7 @@ namespace Volunteer_Management_System.Tests
                 "Opportunity id is required");
         }
 
+        // Test that fulfilling a pending request sets its status to Fulfilled and records the response time.
         [TestMethod]
         public void Fulfill_WithPendingRequest_SetsFulfilledStatus()
         {
@@ -63,6 +68,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsNotNull(request.RespondedAt);
         }
 
+        // Test that fulfilling a request that is already fulfilled throws an InvalidOperationException.
         [TestMethod]
         public void Fulfill_WithAlreadyFulfilledRequest_ThrowsInvalidOperationException()
         {
@@ -79,6 +85,7 @@ namespace Volunteer_Management_System.Tests
                 "Only pending requests can be fulfilled");
         }
 
+        // Test that declining a pending request sets its status to Declined and records the response time.
         [TestMethod]
         public void Decline_WithPendingRequest_SetsDeclinedStatus()
         {
@@ -93,6 +100,7 @@ namespace Volunteer_Management_System.Tests
             Assert.IsNotNull(request.RespondedAt);
         }
 
+        // Test that declining a request that is already declined throws an InvalidOperationException.
         [TestMethod]
         public void Decline_WithAlreadyDeclinedRequest_ThrowsInvalidOperationException()
         {
@@ -109,6 +117,7 @@ namespace Volunteer_Management_System.Tests
                 "Only pending requests can be declined");
         }
 
+        // Test that logging hours more than once on a fulfilled request adds them together.
         [TestMethod]
         public void LogHours_OnFulfilledRequest_AccumulatesHours()
         {
@@ -122,6 +131,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(5.5, request.HoursLogged);
         }
 
+        // Test that logging hours on a request that is still pending throws an InvalidOperationException.
         [TestMethod]
         public void LogHours_OnPendingRequest_ThrowsInvalidOperationException()
         {
@@ -137,6 +147,7 @@ namespace Volunteer_Management_System.Tests
                 "Hours can only be logged for fulfilled requests");
         }
 
+        // Test that logging zero hours throws an ArgumentOutOfRangeException.
         [TestMethod]
         public void LogHours_WithZeroHours_ThrowsArgumentOutOfRangeException()
         {

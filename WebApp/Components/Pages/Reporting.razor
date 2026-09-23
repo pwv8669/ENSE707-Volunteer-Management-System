@@ -7,10 +7,12 @@
 @inject VolunteerRequestService RequestService
 @inject UserManager<ApplicationUser> UserManager
 
+@* Reporting and Dashboard page: shows volunteer participation, event statistics, and pending/fulfilled requests, and lets you fulfill or decline pending requests. *@
 <PageTitle>Reporting and Dashboard</PageTitle>
 
 <h1>Reporting and Dashboard</h1>
 
+@* Participation report: one row per volunteer with their request counts and hours. *@
 <h2>Volunteer Participation Report</h2>
 <table class="table">
     <thead>
@@ -42,6 +44,7 @@
     </tbody>
 </table>
 
+@* Event statistics: one row per opportunity with its request counts and hours. *@
 <h2>Event Statistics &amp; Volunteer Hours</h2>
 <table class="table">
     <thead>
@@ -75,6 +78,7 @@
     </tbody>
 </table>
 
+@* Pending requests (with Fulfill/Decline buttons) on the left, fulfilled requests on the right. *@
 <div class="row">
     <div class="col-md-6">
         <h2>Pending Volunteer Requests</h2>
@@ -113,24 +117,30 @@
     </div>
 </div>
 
+@* Confirmation message shown after fulfilling or declining a request. *@
 @if (!string.IsNullOrEmpty(StatusMessage))
 {
     <div class="alert alert-info mt-3" role="alert">@StatusMessage</div>
 }
 
 @code {
+    // Data shown on the page, reloaded by RefreshDataAsync().
     private IReadOnlyList<VolunteerParticipationSummary> ParticipationReport { get; set; } = [];
     private List<EventStatistics> EventStatisticsList { get; set; } = [];
     private IReadOnlyList<VolunteerRequest> PendingRequests { get; set; } = [];
     private IReadOnlyList<VolunteerRequest> FulfilledRequests { get; set; } = [];
+    // Cache of volunteer id to display name, so each user is only looked up once.
     private readonly Dictionary<Guid, string> _volunteerNames = new();
+    // Message shown after a fulfill/decline action; null hides it.
     private string? StatusMessage { get; set; }
 
+    // Loads the report data when the page first opens.
     protected override async Task OnInitializedAsync()
     {
         await RefreshDataAsync();
     }
 
+    // Reloads every report from the services, then looks up names for any new volunteers.
     private async Task RefreshDataAsync()
     {
         ParticipationReport = ReportingService.GetVolunteerParticipationReport();
@@ -169,6 +179,7 @@
         }
     }
 
+    // Returns the cached display name for a volunteer, or the raw id if it hasn't been looked up yet.
     private string VolunteerName(Guid volunteerId)
     {
         return _volunteerNames.TryGetValue(volunteerId, out string? name)
@@ -176,6 +187,7 @@
             : volunteerId.ToString();
     }
 
+    // Fulfills a pending request, shows a confirmation, and refreshes the page. The request is fetched first so the message can name the volunteer.
     private async Task Fulfill(Guid requestId)
     {
         VolunteerRequest? request = RequestService.FindRequestById(requestId);
@@ -186,6 +198,7 @@
         await RefreshDataAsync();
     }
 
+    // Declines a pending request, shows a confirmation, and refreshes the page.
     private async Task Decline(Guid requestId)
     {
         VolunteerRequest? request = RequestService.FindRequestById(requestId);
@@ -196,6 +209,7 @@
         await RefreshDataAsync();
     }
 
+    // Returns an opportunity's title, or "Unknown event" if it can't be found.
     private string OpportunityTitle(Guid opportunityId)
     {
         return OpportunityService.FindOpportunityById(opportunityId)?.Title ?? "Unknown event";

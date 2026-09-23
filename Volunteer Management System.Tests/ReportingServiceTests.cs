@@ -4,11 +4,13 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
+// This class contains unit tests for the ReportingService class in the Volunteer Management System.
 namespace Volunteer_Management_System.Tests
 {
     [TestClass]
     public class ReportingServiceTests
     {
+        // Helper that creates a sample opportunity (a beach cleanup a week from now that needs 10 volunteers) for the tests to use.
         private static VolunteerOpportunity CreateOpportunity(
             VolunteerOpportunityService opportunityService)
         {
@@ -24,6 +26,7 @@ namespace Volunteer_Management_System.Tests
                 10);
         }
 
+        // Test that creating the service without a request service throws an ArgumentNullException.
         [TestMethod]
         public void Constructor_WithNullRequestService_ThrowsArgumentNullException()
         {
@@ -31,6 +34,7 @@ namespace Volunteer_Management_System.Tests
                 new ReportingService(null!, new VolunteerOpportunityService()));
         }
 
+        // Test that creating the service without an opportunity service throws an ArgumentNullException.
         [TestMethod]
         public void Constructor_WithNullOpportunityService_ThrowsArgumentNullException()
         {
@@ -38,6 +42,7 @@ namespace Volunteer_Management_System.Tests
                 new ReportingService(new VolunteerRequestService(), null!));
         }
 
+        // Test that the participation report counts a volunteer's fulfilled and pending requests and adds up their hours.
         [TestMethod]
         public void GetVolunteerParticipationReport_WithMixedRequestStatuses_SummarizesPerVolunteer()
         {
@@ -70,6 +75,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(3.0, summary.TotalHoursLogged);
         }
 
+        // Test that the participation report is empty when there are no requests.
         [TestMethod]
         public void GetVolunteerParticipationReport_WithNoRequests_ReturnsEmptyList()
         {
@@ -83,6 +89,7 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(0, report);
         }
 
+        // Test that event statistics count an opportunity's fulfilled, declined and pending requests and add up its hours.
         [TestMethod]
         public void GetEventStatistics_WithExistingOpportunity_ReturnsAggregatedCounts()
         {
@@ -118,6 +125,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(2.5, statistics.TotalHoursLogged);
         }
 
+        // Test that asking for statistics on an unknown opportunity throws a KeyNotFoundException.
         [TestMethod]
         public void GetEventStatistics_WithUnknownOpportunity_ThrowsException()
         {
@@ -134,6 +142,7 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Test that only pending requests are returned when requests have mixed statuses.
         [TestMethod]
         public void GetPendingRequests_WithMixedRequestStatuses_ReturnsOnlyPendingRequests()
         {
@@ -163,6 +172,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(pendingRequest.Id, pendingRequests[0].Id);
         }
 
+        // Test that only fulfilled requests are returned when requests have mixed statuses.
         [TestMethod]
         public void GetFulfilledRequests_WithMixedRequestStatuses_ReturnsOnlyFulfilledRequests()
         {
@@ -191,6 +201,7 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual(fulfilledRequest.Id, fulfilledRequests[0].Id);
         }
 
+        // Test that no pending requests are returned when there are no requests.
         [TestMethod]
         public void GetPendingRequests_WithNoRequests_ReturnsEmptyList()
         {
@@ -204,6 +215,7 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(0, pendingRequests);
         }
 
+        // Test that no fulfilled requests are returned when there are no requests.
         [TestMethod]
         public void GetFulfilledRequests_WithNoRequests_ReturnsEmptyList()
         {
