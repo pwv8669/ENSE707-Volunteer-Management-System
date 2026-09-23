@@ -1,13 +1,26 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for the VolunteerOpportunityService.
+//
+// These tests verify that volunteer opportunities can be created, retrieved,
+// updated, deleted, published and archived through the service. They also
+// confirm that volunteers browsing available opportunities only receive
+// opportunities with Published status.
+
+
+using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the management operations provided by VolunteerOpportunityService.
     [TestClass]
     public class VolunteerOpportunityServiceTests
     {
+        // Verifies that creating a valid opportunity stores it in the service
+        // and makes it available through GetAllOpportunities.
         [TestMethod]
         public void CreateOpportunity_WithValidDetails_StoresOpportunity()
         {
@@ -33,6 +46,8 @@ namespace Volunteer_Management_System.Tests
                 opportunities[0].Id);
         }
 
+        // Verifies that GetAllOpportunities returns every opportunity
+        // currently stored by the service.
         [TestMethod]
         public void GetAllOpportunities_WithMultipleItems_ReturnsAllItems()
         {
@@ -63,6 +78,7 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(2, opportunities);
         }
 
+        // Verifies that an opportunity can be found using its unique ID.
         [TestMethod]
         public void FindOpportunityById_WithExistingId_ReturnsOpportunity()
         {
@@ -91,6 +107,8 @@ namespace Volunteer_Management_System.Tests
                 foundOpportunity.Title);
         }
 
+        // Verifies that searching with an unknown opportunity ID
+        // returns null instead of an unrelated opportunity.
         [TestMethod]
         public void FindOpportunityById_WithUnknownId_ReturnsNull()
         {
@@ -102,6 +120,8 @@ namespace Volunteer_Management_System.Tests
             Assert.IsNull(result);
         }
 
+        // Verifies that an existing opportunity can have its details updated
+        // through the service.
         [TestMethod]
         public void UpdateOpportunity_WithExistingId_UpdatesDetails()
         {
@@ -145,6 +165,8 @@ namespace Volunteer_Management_System.Tests
                 updatedOpportunity.VolunteersNeeded);
         }
 
+        // Verifies that trying to update an opportunity that does not exist
+        // produces a KeyNotFoundException.
         [TestMethod]
         public void UpdateOpportunity_WithUnknownId_ThrowsException()
         {
@@ -168,6 +190,8 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Verifies that an existing opportunity can be deleted and is no
+        // longer available through the service afterwards.
         [TestMethod]
         public void DeleteOpportunity_WithExistingId_RemovesOpportunity()
         {
@@ -195,6 +219,8 @@ namespace Volunteer_Management_System.Tests
                 service.FindOpportunityById(opportunity.Id));
         }
 
+        // Verifies that deleting an unknown opportunity safely returns false
+        // and does not remove anything from the service.
         [TestMethod]
         public void DeleteOpportunity_WithUnknownId_ReturnsFalse()
         {
@@ -209,6 +235,8 @@ namespace Volunteer_Management_System.Tests
                 service.GetAllOpportunities());
         }
 
+        // Verifies that the service can publish an existing Draft
+        // opportunity and change its status to Published.
         [TestMethod]
         public void PublishOpportunity_WithExistingOpportunity_PublishesOpportunity()
         {
@@ -232,6 +260,8 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that attempting to publish an unknown opportunity
+        // produces a KeyNotFoundException.
         [TestMethod]
         public void PublishOpportunity_WithUnknownId_ThrowsException()
         {
@@ -246,6 +276,8 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Verifies that a Published opportunity can be archived through
+        // the service.
         [TestMethod]
         public void ArchiveOpportunity_WithPublishedOpportunity_ArchivesOpportunity()
         {
@@ -270,6 +302,8 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that attempting to archive an unknown opportunity
+        // produces a KeyNotFoundException.
         [TestMethod]
         public void ArchiveOpportunity_WithUnknownId_ThrowsException()
         {
@@ -284,6 +318,8 @@ namespace Volunteer_Management_System.Tests
                 "was not found");
         }
 
+        // Verifies that browsing published opportunities returns only
+        // opportunities whose status is Published.
         [TestMethod]
         public void GetPublishedOpportunities_ReturnsOnlyPublishedItems()
         {
@@ -324,6 +360,8 @@ namespace Volunteer_Management_System.Tests
                 results[0].Status);
         }
 
+        // Verifies that opportunities still in Draft status are not shown
+        // when volunteers browse published opportunities.
         [TestMethod]
         public void GetPublishedOpportunities_DoesNotReturnDraftOpportunity()
         {
@@ -345,6 +383,8 @@ namespace Volunteer_Management_System.Tests
             Assert.HasCount(0, results);
         }
 
+        // Verifies that archived opportunities are removed from the list
+        // of opportunities available for volunteers to browse.
         [TestMethod]
         public void GetPublishedOpportunities_DoesNotReturnArchivedOpportunity()
         {

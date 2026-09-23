@@ -1,12 +1,23 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for VolunteerAvailabilityService.
+//
+// These tests verify that volunteers can add, view, update and remove their
+// availability. They also verify role restrictions, ownership rules and
+// checks for whether a volunteer is available during a specified time.
+
+
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the business rules provided by VolunteerAvailabilityService.
     [TestClass]
     public class VolunteerAvailabilityServiceTests
     {
+        // Creates a Volunteer user for availability-related tests.
         private static User CreateVolunteer(
             string username = "volunteer")
         {
@@ -16,6 +27,7 @@ namespace Volunteer_Management_System.Tests
                 Role.Volunteer);
         }
 
+        // Creates a Coordinator user for testing role restrictions.
         private static User CreateCoordinator()
         {
             return User.Create(
@@ -24,6 +36,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Coordinator);
         }
 
+        // Verifies that a Volunteer can add a new availability period
+        // and retrieve it from the service.
         [TestMethod]
         public void AddAvailability_WithVolunteer_StoresAvailability()
         {
@@ -52,6 +66,7 @@ namespace Volunteer_Management_System.Tests
                 results[0].Id);
         }
 
+        // Verifies that a Coordinator cannot manage volunteer availability.
         [TestMethod]
         public void AddAvailability_WithCoordinator_ThrowsUnauthorizedException()
         {
@@ -70,6 +85,8 @@ namespace Volunteer_Management_System.Tests
                     from.AddHours(5)));
         }
 
+        // Verifies that availability checking returns true when an existing
+        // availability period fully covers the requested event time.
         [TestMethod]
         public void IsVolunteerAvailable_WhenWindowCoversEvent_ReturnsTrue()
         {
@@ -95,6 +112,8 @@ namespace Volunteer_Management_System.Tests
             Assert.IsTrue(result);
         }
 
+        // Verifies that availability checking returns false when none of
+        // the volunteer's availability periods cover the requested event.
         [TestMethod]
         public void IsVolunteerAvailable_WhenNoWindowCoversEvent_ReturnsFalse()
         {
@@ -120,6 +139,8 @@ namespace Volunteer_Management_System.Tests
             Assert.IsFalse(result);
         }
 
+        // Verifies that a Volunteer can update the start and end times
+        // of an availability period that belongs to them.
         [TestMethod]
         public void UpdateAvailability_WithOwnAvailability_UpdatesTimes()
         {
@@ -158,6 +179,8 @@ namespace Volunteer_Management_System.Tests
                 availability.AvailableTo);
         }
 
+        // Verifies that a Volunteer can remove an availability period
+        // belonging to their own account.
         [TestMethod]
         public void RemoveAvailability_WithOwnAvailability_RemovesAvailability()
         {
@@ -188,6 +211,8 @@ namespace Volunteer_Management_System.Tests
                     volunteer.Id));
         }
 
+        // Verifies that one Volunteer cannot update an availability record
+        // belonging to another Volunteer.
         [TestMethod]
         public void UpdateAvailability_WithAnotherVolunteer_ThrowsUnauthorizedException()
         {

@@ -1,12 +1,25 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains unit tests for the VolunteerAvailability model.
+//
+// These tests verify that availability periods are created correctly,
+// invalid volunteer IDs and time ranges are rejected, and the Covers method
+// correctly determines whether an opportunity fits within a volunteer's
+// availability.
+
+
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the core behaviour and validation rules of VolunteerAvailability.
     [TestClass]
     public class VolunteerAvailabilityTests
     {
+        // Verifies that a valid volunteer ID and valid time range create
+        // an availability record with the expected values.
         [TestMethod]
         public void Create_WithValidTimes_CreatesAvailability()
         {
@@ -41,6 +54,8 @@ namespace Volunteer_Management_System.Tests
                 availability.AvailableTo);
         }
 
+        // Verifies that an availability record cannot be created without
+        // a valid volunteer ID.
         [TestMethod]
         public void Create_WithEmptyVolunteerId_ThrowsException()
         {
@@ -54,6 +69,8 @@ namespace Volunteer_Management_System.Tests
                     from.AddHours(5)));
         }
 
+        // Verifies that an invalid availability range is rejected when
+        // the end time occurs before the start time.
         [TestMethod]
         public void Create_WithInvalidTimes_ThrowsException()
         {
@@ -67,6 +84,8 @@ namespace Volunteer_Management_System.Tests
                     from.AddHours(-1)));
         }
 
+        // Verifies that Covers returns true when an opportunity takes place
+        // completely within the volunteer's availability period.
         [TestMethod]
         public void Covers_WhenOpportunityInsideAvailability_ReturnsTrue()
         {
@@ -87,6 +106,8 @@ namespace Volunteer_Management_System.Tests
             Assert.IsTrue(result);
         }
 
+        // Verifies that Covers returns false when the opportunity extends
+        // outside the volunteer's availability period.
         [TestMethod]
         public void Covers_WhenOpportunityOutsideAvailability_ReturnsFalse()
         {

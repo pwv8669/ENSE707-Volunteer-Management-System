@@ -1,7 +1,21 @@
-﻿using System;
+﻿
+// Purpose:
+// Represents a volunteer opportunity in the Volunteer Management System.
+// This class stores the main details of an opportunity such as the title,
+// description, location, date/time, required skills and number of volunteers.
+//
+// It also manages the lifecycle of an opportunity by allowing it to be
+// created, updated, published and archived.
+
+
+using System;
 
 namespace Volunteer_Management_System
 {
+    // Defines the possible lifecycle states of a volunteer opportunity.
+    // Draft     = created but not yet visible to volunteers.
+    // Published = available for volunteers to browse and apply for.
+    // Archived  = no longer active or available for new applications.
     public enum OpportunityStatus
     {
         Draft,
@@ -9,6 +23,7 @@ namespace Volunteer_Management_System
         Archived
     }
 
+    // Represents one volunteer opportunity/event within the system.
     public class VolunteerOpportunity
     {
         public Guid Id { get; init; }
@@ -31,6 +46,8 @@ namespace Volunteer_Management_System
 
         public DateTime CreatedAt { get; init; }
 
+        // Private constructor prevents opportunities from being created
+        // directly without going through the Create method and validation.
         private VolunteerOpportunity()
         {
             Title = string.Empty;
@@ -39,6 +56,9 @@ namespace Volunteer_Management_System
             RequiredSkills = string.Empty;
         }
 
+        // Creates a new volunteer opportunity.
+        // All details are validated first, and every new opportunity
+        // begins with Draft status until it is published.
         public static VolunteerOpportunity Create(
             string title,
             string description,
@@ -72,6 +92,9 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Updates the details of an existing volunteer opportunity.
+        // The new values must pass the same validation rules used when
+        // creating an opportunity.
         public void UpdateDetails(
             string title,
             string description,
@@ -99,6 +122,9 @@ namespace Volunteer_Management_System
             VolunteersNeeded = volunteersNeeded;
         }
 
+        // Publishes a Draft opportunity so volunteers can browse and
+        // apply for it. Only opportunities currently in Draft status
+        // are allowed to be published.
         public void Publish()
         {
             if (Status != OpportunityStatus.Draft)
@@ -110,6 +136,8 @@ namespace Volunteer_Management_System
             Status = OpportunityStatus.Published;
         }
 
+        // Archives an opportunity so it is no longer considered active.
+        // An opportunity that is already archived cannot be archived again.
         public void Archive()
         {
             if (Status == OpportunityStatus.Archived)
@@ -121,6 +149,14 @@ namespace Volunteer_Management_System
             Status = OpportunityStatus.Archived;
         }
 
+        // Validates all important opportunity information before an
+        // opportunity is created or updated.
+        //
+        // This ensures:
+        // - Required text fields are not empty.
+        // - The event begins in the future.
+        // - The end time is after the start time.
+        // - At least one volunteer is required.
         private static void ValidateDetails(
             string title,
             string description,

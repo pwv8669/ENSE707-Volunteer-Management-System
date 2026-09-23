@@ -1,12 +1,31 @@
-﻿using System;
+﻿
+// Purpose:
+// Contains integration-style unit tests for volunteer assignment availability,
+// scheduling conflicts and opportunity capacity.
+//
+// These tests verify that:
+// - Available volunteers can be assigned.
+// - Unavailable volunteers cannot be assigned.
+// - Volunteers cannot receive overlapping assignments.
+// - Non-overlapping assignments are allowed.
+// - Remaining volunteer capacity is calculated correctly.
+//
+// This test file supports Feature 4: Volunteer Assignment and Availability,
+// while also preparing conflict-management behaviour for scheduling.
+
+
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests assignment rules involving volunteer availability,
+    // scheduling conflicts and remaining capacity.
     [TestClass]
     public class VolunteerAssignmentConflictTests
     {
+        // Creates a Volunteer user used throughout the conflict tests.
         private static User CreateVolunteer()
         {
             return User.Create(
@@ -15,6 +34,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Volunteer);
         }
 
+        // Creates a Coordinator user who can approve applications
+        // and assign volunteers.
         private static User CreateCoordinator()
         {
             return User.Create(
@@ -23,6 +44,8 @@ namespace Volunteer_Management_System.Tests
                 Role.Coordinator);
         }
 
+        // Creates and publishes an opportunity with the specified
+        // start and end times for conflict-related tests.
         private static VolunteerOpportunity CreateOpportunity(
             VolunteerOpportunityService opportunityService,
             string title,
@@ -45,6 +68,8 @@ namespace Volunteer_Management_System.Tests
             return opportunity;
         }
 
+        // Verifies that a volunteer can be approved and assigned when their
+        // availability fully covers the opportunity time.
         [TestMethod]
         public void ApproveAndAssign_WhenVolunteerAvailable_CreatesAssignment()
         {
@@ -95,6 +120,8 @@ namespace Volunteer_Management_System.Tests
                 assignment.Status);
         }
 
+        // Verifies that a volunteer cannot be assigned when their
+        // availability does not cover the opportunity time.
         [TestMethod]
         public void ApproveAndAssign_WhenVolunteerUnavailable_ThrowsException()
         {
@@ -146,6 +173,9 @@ namespace Volunteer_Management_System.Tests
                 "not available");
         }
 
+        // Verifies that a volunteer cannot be assigned to a second
+        // opportunity when its scheduled time overlaps an existing
+        // active assignment.
         [TestMethod]
         public void ApproveAndAssign_WithOverlappingAssignment_ThrowsException()
         {
@@ -216,6 +246,8 @@ namespace Volunteer_Management_System.Tests
                 "overlapping");
         }
 
+        // Verifies that the same volunteer can be assigned to multiple
+        // opportunities when their scheduled times do not overlap.
         [TestMethod]
         public void ApproveAndAssign_WithNonOverlappingAssignments_AllowsBoth()
         {
@@ -290,6 +322,8 @@ namespace Volunteer_Management_System.Tests
                     volunteer.Id));
         }
 
+        // Verifies that remaining opportunity capacity is calculated from
+        // the number of active volunteer assignments.
         [TestMethod]
         public void GetRemainingCapacity_AfterAssignment_ReturnsCorrectNumber()
         {

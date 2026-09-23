@@ -1,11 +1,23 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿
+// Purpose:
+// Contains unit tests for the VolunteerOpportunity model.
+//
+// These tests verify that volunteer opportunities can be created and updated
+// correctly, that invalid opportunity information is rejected, and that the
+// Draft, Published and Archived status transitions behave as expected.
+
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Volunteer_Management_System;
 
 namespace Volunteer_Management_System.Tests
 {
+    // Tests the core behaviour and validation rules of VolunteerOpportunity.
     [TestClass]
     public class VolunteerOpportunityTests
     {
+        // Verifies that valid opportunity information creates an opportunity
+        // with the correct details and an initial Draft status.
         [TestMethod]
         public void Create_WithValidDetails_CreatesDraftOpportunity()
         {
@@ -37,6 +49,8 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that unnecessary spaces around text values are removed
+        // when a new volunteer opportunity is created.
         [TestMethod]
         public void Create_TrimsTextValues()
         {
@@ -64,6 +78,7 @@ namespace Volunteer_Management_System.Tests
                 opportunity.RequiredSkills);
         }
 
+        // Verifies that an opportunity cannot be created without a title.
         [TestMethod]
         public void Create_WithMissingTitle_ThrowsArgumentException()
         {
@@ -85,6 +100,8 @@ namespace Volunteer_Management_System.Tests
                 "Title is required");
         }
 
+        // Verifies that the end time of an opportunity must occur after
+        // its start time.
         [TestMethod]
         public void Create_WithEndBeforeStart_ThrowsArgumentException()
         {
@@ -107,6 +124,7 @@ namespace Volunteer_Management_System.Tests
                 "End date and time must be after");
         }
 
+        // Verifies that an opportunity must request at least one volunteer.
         [TestMethod]
         public void Create_WithZeroVolunteers_ThrowsArgumentException()
         {
@@ -128,6 +146,8 @@ namespace Volunteer_Management_System.Tests
                 "Volunteers needed must be greater than zero");
         }
 
+        // Verifies that valid replacement details correctly update an
+        // existing volunteer opportunity.
         [TestMethod]
         public void UpdateDetails_WithValidDetails_UpdatesOpportunity()
         {
@@ -172,6 +192,7 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that a Draft opportunity can successfully be published.
         [TestMethod]
         public void Publish_WithDraftOpportunity_SetsPublishedStatus()
         {
@@ -194,6 +215,7 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that a Published opportunity can be archived.
         [TestMethod]
         public void Archive_WithPublishedOpportunity_SetsArchivedStatus()
         {
@@ -217,6 +239,8 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that a Draft opportunity can also be archived without
+        // first being published.
         [TestMethod]
         public void Archive_WithDraftOpportunity_SetsArchivedStatus()
         {
@@ -239,6 +263,7 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Status);
         }
 
+        // Verifies that an Archived opportunity cannot be published again.
         [TestMethod]
         public void Publish_WithArchivedOpportunity_ThrowsException()
         {
@@ -260,6 +285,8 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Publish());
         }
 
+        // Verifies that an already Published opportunity cannot be
+        // published for a second time.
         [TestMethod]
         public void Publish_WithAlreadyPublishedOpportunity_ThrowsException()
         {
@@ -281,6 +308,7 @@ namespace Volunteer_Management_System.Tests
                 opportunity.Publish());
         }
 
+        // Verifies that an Archived opportunity cannot be archived again.
         [TestMethod]
         public void Archive_WithAlreadyArchivedOpportunity_ThrowsException()
         {
