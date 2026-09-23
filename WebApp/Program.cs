@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Volunteer_Management_System;
 using WebApp.Components;
 using WebApp.Components.Account;
 using WebApp.Data;
@@ -37,6 +38,16 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
+// Reporting and Dashboard: volunteer opportunity/request domain services.
+// These currently hold data in memory (see the domain library's service
+// classes) rather than in the Postgres database, so opportunity and
+// request data does not yet survive an app restart. Wiring them to
+// ApplicationDbContext is tracked as a follow-up once opportunity/request
+// management gets its own persisted entities.
+builder.Services.AddSingleton<VolunteerOpportunityService>();
+builder.Services.AddSingleton<VolunteerRequestService>();
+builder.Services.AddSingleton<ReportingService>();
 
 var app = builder.Build();
 
