@@ -157,6 +157,16 @@
             result = await UserManager.AddLoginAsync(user, externalLoginInfo);
             if (result.Succeeded)
             {
+                // External registrations use the same least-privileged default role.
+                var roleResult = await UserManager.AddToRoleAsync(user, AppRoles.Volunteer);
+                if (!roleResult.Succeeded)
+                {
+                    // Deleting the incomplete account also removes its external login.
+                    await UserManager.DeleteAsync(user);
+                    message = $"Error: {string.Join(",", roleResult.Errors.Select(error => error.Description))}";
+                    return;
+                }
+
                 Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
 
                 var userId = await UserManager.GetUserIdAsync(user);

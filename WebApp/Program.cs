@@ -33,6 +33,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
         options.SignIn.RequireConfirmedAccount = true;
         options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
@@ -50,6 +51,9 @@ builder.Services.AddSingleton<VolunteerRequestService>();
 builder.Services.AddSingleton<ReportingService>();
 
 var app = builder.Build();
+
+// Ensure the supported roles exist and give pre-role accounts the default role.
+await IdentityDataSeeder.SeedAsync(app.Services);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
