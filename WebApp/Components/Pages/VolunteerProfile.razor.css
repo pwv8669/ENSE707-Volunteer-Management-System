@@ -1,0 +1,46 @@
+.profile-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 2rem;
+}
+
+.profile-page__intro {
+    margin-bottom: 1.25rem;
+}
+
+.profile-page__intro h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.profile-page__intro p {
+    color: var(--bs-secondary-color, #6c757d);
+    margin: 0;
+}
+
+.profile-page__loading {
+    display: flex;
+    align-items: center;
+    padding: 2rem 0;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+/* Two columns on large screens: details and skills on the left, availability on the right.
+   Below 992px the columns stack. */
+.profile-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 0 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .profile-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .profile-page__intro h1 {
+        font-size: 1.5rem;
+    }
+}

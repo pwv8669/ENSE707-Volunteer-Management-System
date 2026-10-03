@@ -1,0 +1,20 @@
+@* Shows the result of a save, add or delete as a green success or red error message.
+   Errors use role="alert" so screen readers announce them straight away. *@
+@if (Result is not null)
+{
+    <div class="alert @(Result.Succeeded ? "alert-success" : "alert-danger") status-alert"
+         role="@(Result.Succeeded ? "status" : "alert")">
+        <span>@Result.Message</span>
+        <button type="button" class="btn-close" aria-label="Dismiss message" @onclick="OnDismiss"></button>
+    </div>
+}
+
+@code {
+    // The message to show; nothing is shown when this is null.
+    [Parameter]
+    public ProfileResult? Result { get; set; }
+
+    // Called when the volunteer closes the message.
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+}

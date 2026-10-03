@@ -1,0 +1,179 @@
+@* "Personal details" section. Shows the saved details, and switches to a validated form when
+   the volunteer clicks Edit. Cancel throws the changes away; Save sends them to the page. *@
+@using WebApp.Data
+<ProfileSection Title="Personal details" Description="How coordinators can identify and contact you.">
+    <Actions>
+        @if (!editing)
+        {
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="StartEditing">Edit</button>
+        }
+    </Actions>
+    <ChildContent>
+        <StatusAlert Result="result" OnDismiss="() => result = null" />
+
+        @if (!editing)
+        {
+            <dl class="details-grid">
+                <div class="details-grid__item">
+                    <dt>Full name</dt>
+                    <dd>@DisplayOrPlaceholder($"{Details.FirstName} {Details.LastName}")</dd>
+                </div>
+                <div class="details-grid__item">
+                    <dt>Email</dt>
+                    <dd>
+                        @Email
+                        <a class="details-grid__link" href="Account/Manage/Email">Change</a>
+                    </dd>
+                </div>
+                <div class="details-grid__item">
+                    <dt>Phone</dt>
+                    <dd>@DisplayOrPlaceholder(Details.PhoneNumber)</dd>
+                </div>
+                <div class="details-grid__item">
+                    <dt>City or suburb</dt>
+                    <dd>@DisplayOrPlaceholder(Details.City)</dd>
+                </div>
+                <div class="details-grid__item">
+                    <dt>Emergency contact</dt>
+                    <dd>
+                        @if (Details.EmergencyContactName is null)
+                        {
+                            <span class="details-grid__empty">Not added</span>
+                        }
+                        else
+                        {
+                            <span>@Details.EmergencyContactName</span>
+                            <span class="details-grid__sub">@Details.EmergencyContactPhone</span>
+                        }
+                    </dd>
+                </div>
+                <div class="details-grid__item details-grid__item--wide">
+                    <dt>About me</dt>
+                    <dd class="details-grid__bio">@DisplayOrPlaceholder(Details.Bio)</dd>
+                </div>
+            </dl>
+        }
+        else
+        {
+            <EditForm Model="form" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-first">First name <span class="text-danger" aria-hidden="true">*</span></label>
+                        <InputText id="pd-first" class="form-control" @bind-Value="form.FirstName" autocomplete="given-name" />
+                        <ValidationMessage For="() => form.FirstName" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-last">Last name <span class="text-danger" aria-hidden="true">*</span></label>
+                        <InputText id="pd-last" class="form-control" @bind-Value="form.LastName" autocomplete="family-name" />
+                        <ValidationMessage For="() => form.LastName" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-phone">Phone number</label>
+                        <InputText id="pd-phone" type="tel" class="form-control" @bind-Value="form.PhoneNumber" autocomplete="tel" placeholder="021 123 4567" />
+                        <ValidationMessage For="() => form.PhoneNumber" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-city">City or suburb</label>
+                        <InputText id="pd-city" class="form-control" @bind-Value="form.City" autocomplete="address-level2" placeholder="e.g. Mt Eden, Auckland" />
+                        <ValidationMessage For="() => form.City" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-ec-name">Emergency contact name</label>
+                        <InputText id="pd-ec-name" class="form-control" @bind-Value="form.EmergencyContactName" />
+                        <ValidationMessage For="() => form.EmergencyContactName" />
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pd-ec-phone">Emergency contact phone</label>
+                        <InputText id="pd-ec-phone" type="tel" class="form-control" @bind-Value="form.EmergencyContactPhone" />
+                        <ValidationMessage For="() => form.EmergencyContactPhone" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="pd-bio">About me</label>
+                        <InputTextArea id="pd-bio" class="form-control" rows="3" @bind-Value="form.Bio"
+                                       placeholder="A sentence or two about you and why you volunteer." />
+                        <div class="form-text">@(form.Bio?.Length ?? 0) / @ProfileFieldLimits.Bio characters</div>
+                        <ValidationMessage For="() => form.Bio" />
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@saving">
+                        @if (saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                        }
+                        Save
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" disabled="@saving" @onclick="CancelEditing">Cancel</button>
+                </div>
+            </EditForm>
+        }
+    </ChildContent>
+</ProfileSection>
+
+@code {
+    // The saved details to display.
+    [Parameter, EditorRequired]
+    public PersonalDetailsInput Details { get; set; } = default!;
+
+    // Shown read-only; changing email goes through Identity's Manage pages because it needs confirming.
+    [Parameter, EditorRequired]
+    public string Email { get; set; } = string.Empty;
+
+    // Saves the edited details and returns whether it worked.
+    [Parameter, EditorRequired]
+    public Func<PersonalDetailsInput, Task<ProfileResult>> OnSave { get; set; } = default!;
+
+    private bool editing;
+    private bool saving;
+    private PersonalDetailsInput form = new();
+    private ProfileResult? result;
+
+    // Edit a copy, so Cancel leaves the saved details untouched.
+    private void StartEditing()
+    {
+        form = Details.Clone();
+        result = null;
+        editing = true;
+    }
+
+    private void CancelEditing()
+    {
+        editing = false;
+        result = null;
+    }
+
+    // Only runs when every field passes validation.
+    private async Task SaveAsync()
+    {
+        saving = true;
+        result = null;
+
+        try
+        {
+            result = await OnSave(form);
+            if (result.Succeeded)
+            {
+                editing = false;
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    // Shows a saved value, or a grey "Not added" when the field is empty.
+    private RenderFragment DisplayOrPlaceholder(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return @<span class="details-grid__empty">Not added</span>;
+        }
+
+        string text = value.Trim();
+        return @<span>@text</span>;
+    }
+}

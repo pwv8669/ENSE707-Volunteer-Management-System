@@ -1,0 +1,40 @@
+@* A card used for every section of the profile page: title, optional description,
+   optional action buttons on the right, and the section's content below. *@
+<section class="profile-section" aria-labelledby="@headingId">
+    <header class="profile-section__header">
+        <div class="profile-section__heading">
+            <h2 id="@headingId" class="profile-section__title">@Title</h2>
+            @if (!string.IsNullOrWhiteSpace(Description))
+            {
+                <p class="profile-section__description">@Description</p>
+            }
+        </div>
+        @if (Actions is not null)
+        {
+            <div class="profile-section__actions">@Actions</div>
+        }
+    </header>
+    <div class="profile-section__body">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    // Shown as the section's heading.
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    // One line under the heading explaining what the section is for.
+    [Parameter]
+    public string? Description { get; set; }
+
+    // Buttons shown on the right of the heading (e.g. Edit, Add).
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    // Unique id so screen readers can link the section to its heading.
+    private readonly string headingId = $"section-{Guid.NewGuid():N}";
+}

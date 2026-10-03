@@ -1,0 +1,13 @@
+@* A small labelled number, e.g. "7.5 hrs  Hours logged". Used in the header and history. *@
+<div class="stat-tile">
+    <span class="stat-tile__value">@Value</span>
+    <span class="stat-tile__label">@Label</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+}

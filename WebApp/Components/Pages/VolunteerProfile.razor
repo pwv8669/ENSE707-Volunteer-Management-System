@@ -1,0 +1,188 @@
+@page "/profile"
+@attribute [Authorize]
+@implements IDisposable
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Volunteer_Management_System
+@using WebApp.Data
+@using WebApp.Services
+@inject VolunteerProfileService ProfileService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject VolunteerRequestService RequestService
+@inject VolunteerOpportunityService OpportunityService
+@inject IWebHostEnvironment Environment
+@inject TimeProvider Clock
+@inject ILogger<VolunteerProfile> Logger
+
+@* Volunteer Profile Management (requirement 8). The page loads the signed-in volunteer's profile
+   and hands each section to a reusable component. Every save goes through VolunteerProfileService,
+   then the page reloads the profile so all sections (and the header) show the latest data. *@
+<PageTitle>My profile</PageTitle>
+
+<div class="profile-page">
+    <div class="profile-page__intro">
+        <h1>My profile</h1>
+        <p>Keep your details, skills and availability up to date so coordinators can match you with the right opportunities.</p>
+    </div>
+
+    @if (loadFailed)
+    {
+        <div class="alert alert-danger" role="alert">
+            We couldn't load your profile. Please refresh the page, or sign out and back in.
+        </div>
+    }
+    else if (profile is null)
+    {
+        <div class="profile-page__loading" role="status">
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            Loading your profile...
+        </div>
+    }
+    else
+    {
+        <ProfileHeader Profile="profile" Summary="summary" />
+
+        <div class="profile-grid">
+            <div class="profile-grid__main">
+                <PersonalDetailsCard Details="profile.PersonalDetails" Email="@profile.Email" OnSave="SavePersonalDetailsAsync" />
+
+                <ProfileSection Title="Skills and interests" Description="What you're good at and what you'd enjoy helping with.">
+                    <TagEditor Title="Skills" Variant="skill" Items="profile.Skills" OnSave="SaveSkillsAsync"
+                               Suggestions="SkillSuggestions" Placeholder="e.g. First aid, Driving, Cooking"
+                               EmptyText="You haven't added any skills yet." />
+                    <TagEditor Title="Interests" Variant="interest" Items="profile.Interests" OnSave="SaveInterestsAsync"
+                               Suggestions="InterestSuggestions" Placeholder="e.g. Environment, Youth, Animals"
+                               EmptyText="You haven't added any interests yet." />
+                </ProfileSection>
+            </div>
+
+            <div class="profile-grid__side">
+                <AvailabilityCard Slots="profile.Availability" Now="Now"
+                                  OnAdd="AddAvailabilityAsync" OnUpdate="UpdateAvailabilityAsync" OnDelete="DeleteAvailabilityAsync" />
+            </div>
+        </div>
+
+        <VolunteerHistoryCard Entries="history" Summary="summary" Now="Now"
+                              OnAddSampleData="@(Environment.IsDevelopment() ? EventCallback.Factory.Create(this, AddSampleHistoryAsync) : default)" />
+    }
+</div>
+
+@code {
+    // Quick-add suggestions shown while editing. Volunteers can still type anything else.
+    private static readonly IReadOnlyList<string> SkillSuggestions =
+        ["First aid", "Driving", "Cooking", "Customer service", "Event setup", "Teaching", "Te reo Māori", "IT support"];
+
+    private static readonly IReadOnlyList<string> InterestSuggestions =
+        ["Environment", "Youth", "Elderly care", "Animals", "Community events", "Food security", "Sport", "Arts"];
+
+    // Only one database operation runs at a time. Blazor Server shares one database context per
+    // browser tab, and EF Core doesn't allow two operations on a context at once.
+    private readonly SemaphoreSlim gate = new(1, 1);
+
+    private string? userId;
+    private VolunteerProfileModel? profile;
+    private IReadOnlyList<VolunteerHistoryEntry> history = [];
+    private VolunteerHistorySummary summary = new();
+    private bool loadFailed;
+
+    private DateTime Now => Clock.GetLocalNow().DateTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        userId = UserManager.GetUserId(state.User);
+
+        if (userId is null)
+        {
+            loadFailed = true;
+            return;
+        }
+
+        await gate.WaitAsync();
+        try
+        {
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load the profile for user {UserId}.", userId);
+            loadFailed = true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    // Reads the profile and history again. Callers must hold the gate.
+    private async Task LoadAsync()
+    {
+        profile = await ProfileService.GetProfileAsync(userId!);
+        if (profile is null)
+        {
+            loadFailed = true;
+            return;
+        }
+
+        history = ProfileService.GetHistory(profile.VolunteerId);
+        summary = ProfileService.GetHistorySummary(profile.VolunteerId);
+    }
+
+    // Runs one change, then reloads on success. Unexpected errors are logged and shown as a friendly message.
+    private async Task<ProfileResult> RunAsync(Func<string, Task<ProfileResult>> change)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            ProfileResult result = await change(userId!);
+            if (result.Succeeded)
+            {
+                await LoadAsync();
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to update the profile for user {UserId}.", userId);
+            return ProfileResult.Failure("Something went wrong and your changes weren't saved. Please try again.");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private Task<ProfileResult> SavePersonalDetailsAsync(PersonalDetailsInput input) =>
+        RunAsync(id => ProfileService.UpdatePersonalDetailsAsync(id, input));
+
+    private Task<ProfileResult> SaveSkillsAsync(IReadOnlyList<string> skills) =>
+        RunAsync(id => ProfileService.UpdateSkillsAsync(id, skills));
+
+    private Task<ProfileResult> SaveInterestsAsync(IReadOnlyList<string> interests) =>
+        RunAsync(id => ProfileService.UpdateInterestsAsync(id, interests));
+
+    private Task<ProfileResult> AddAvailabilityAsync(AvailabilityInput input) =>
+        RunAsync(id => ProfileService.AddAvailabilityAsync(id, input));
+
+    private Task<ProfileResult> UpdateAvailabilityAsync(Guid slotId, AvailabilityInput input) =>
+        RunAsync(id => ProfileService.UpdateAvailabilityAsync(id, slotId, input));
+
+    private Task<ProfileResult> DeleteAvailabilityAsync(Guid slotId) =>
+        RunAsync(id => ProfileService.DeleteAvailabilityAsync(id, slotId));
+
+    // Development only: gives this volunteer some demo history (see DevelopmentSampleData).
+    private async Task AddSampleHistoryAsync()
+    {
+        if (profile is null)
+        {
+            return;
+        }
+
+        DevelopmentSampleData.AddSampleHistory(RequestService, OpportunityService, profile.VolunteerId);
+        await RunAsync(_ => Task.FromResult(ProfileResult.Success("Sample history added.")));
+    }
+
+    public void Dispose() => gate.Dispose();
+}

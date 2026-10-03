@@ -1,0 +1,236 @@
+@using WebApp.Data
+@* "Availability" section. Lists the volunteer's availability windows (upcoming first, past ones
+   tucked away), with Add, Edit and Delete. Delete asks for confirmation on the row itself. *@
+<ProfileSection Title="Availability" Description="Times you're free to volunteer. Coordinators use these when assigning shifts.">
+    <Actions>
+        @if (mode == FormMode.None)
+        {
+            <button type="button" class="btn btn-primary btn-sm" disabled="@busy" @onclick="StartAdding">+ Add time</button>
+        }
+    </Actions>
+    <ChildContent>
+        <StatusAlert Result="result" OnDismiss="() => result = null" />
+
+        @if (mode != FormMode.None)
+        {
+            <div class="availability-form">
+                <EditForm Model="form" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator />
+                    <h3 class="availability-form__title">@(mode == FormMode.Add ? "Add availability" : "Edit availability")</h3>
+
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" for="av-start">From</label>
+                            <InputDate id="av-start" Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="form.StartsAt" />
+                            <ValidationMessage For="() => form.StartsAt" />
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="av-end">Until</label>
+                            <InputDate id="av-end" Type="InputDateType.DateTimeLocal" class="form-control" @bind-Value="form.EndsAt" />
+                            <ValidationMessage For="() => form.EndsAt" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="av-note">Note <span class="text-body-secondary">(optional)</span></label>
+                            <InputText id="av-note" class="form-control" @bind-Value="form.Note"
+                                       maxlength="@ProfileFieldLimits.AvailabilityNote" placeholder="e.g. Can drive, mornings only" />
+                            <ValidationMessage For="() => form.Note" />
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" disabled="@busy">
+                            @if (busy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                            }
+                            @(mode == FormMode.Add ? "Add" : "Save")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" disabled="@busy" @onclick="CloseForm">Cancel</button>
+                    </div>
+                </EditForm>
+            </div>
+        }
+
+        @if (Upcoming.Count == 0 && mode == FormMode.None)
+        {
+            <div class="availability-empty">
+                <p class="mb-2">You haven't added any upcoming availability.</p>
+                <button type="button" class="btn btn-outline-primary btn-sm" disabled="@busy" @onclick="StartAdding">Add your first time</button>
+            </div>
+        }
+
+        @if (Upcoming.Count > 0)
+        {
+            <ul class="slot-list">
+                @foreach (AvailabilitySlotModel slot in Upcoming)
+                {
+                    <li class="slot @(slot.Id == editingId ? "slot--editing" : null)">
+                        <div class="slot__details">
+                            <span class="slot__when">@ProfileFormat.Range(slot.StartsAt, slot.EndsAt)</span>
+                            @if (slot.Note is not null)
+                            {
+                                <span class="slot__note">@slot.Note</span>
+                            }
+                        </div>
+                        @SlotActions(slot, canEdit: true)
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (Past.Count > 0)
+        {
+            <button type="button" class="btn btn-link btn-sm px-0 slot-past-toggle" @onclick="() => showPast = !showPast"
+                    aria-expanded="@(showPast ? "true" : "false")">
+                @(showPast ? "Hide" : "Show") past times (@Past.Count)
+            </button>
+
+            if (showPast)
+            {
+                <ul class="slot-list slot-list--past">
+                    @foreach (AvailabilitySlotModel slot in Past)
+                    {
+                        <li class="slot">
+                            <div class="slot__details">
+                                <span class="slot__when">@ProfileFormat.Range(slot.StartsAt, slot.EndsAt)</span>
+                                <span class="badge text-bg-light">Past</span>
+                            </div>
+                            @SlotActions(slot, canEdit: false)
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </ChildContent>
+</ProfileSection>
+
+@code {
+    private enum FormMode { None, Add, Edit }
+
+    // All of the volunteer's saved windows.
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AvailabilitySlotModel> Slots { get; set; } = [];
+
+    // The current local time, used to split upcoming from past windows.
+    [Parameter, EditorRequired]
+    public DateTime Now { get; set; }
+
+    [Parameter, EditorRequired]
+    public Func<AvailabilityInput, Task<ProfileResult>> OnAdd { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<Guid, AvailabilityInput, Task<ProfileResult>> OnUpdate { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<Guid, Task<ProfileResult>> OnDelete { get; set; } = default!;
+
+    private FormMode mode = FormMode.None;
+    private Guid? editingId;
+    private Guid? confirmingDeleteId;
+    private AvailabilityInput form = new();
+    private ProfileResult? result;
+    private bool busy;
+    private bool showPast;
+
+    private List<AvailabilitySlotModel> Upcoming =>
+        Slots.Where(slot => !slot.IsPast(Now)).OrderBy(slot => slot.StartsAt).ToList();
+
+    // Most recent past window first.
+    private List<AvailabilitySlotModel> Past =>
+        Slots.Where(slot => slot.IsPast(Now)).OrderByDescending(slot => slot.StartsAt).ToList();
+
+    // A new form defaults to tomorrow, 9 am to 12 pm, which is a sensible starting point to adjust.
+    private void StartAdding()
+    {
+        DateTime tomorrowMorning = Now.Date.AddDays(1).AddHours(9);
+        form = new AvailabilityInput { StartsAt = tomorrowMorning, EndsAt = tomorrowMorning.AddHours(3) };
+        editingId = null;
+        confirmingDeleteId = null;
+        result = null;
+        mode = FormMode.Add;
+    }
+
+    private void StartEditing(AvailabilitySlotModel slot)
+    {
+        form = new AvailabilityInput { StartsAt = slot.StartsAt, EndsAt = slot.EndsAt, Note = slot.Note };
+        editingId = slot.Id;
+        confirmingDeleteId = null;
+        result = null;
+        mode = FormMode.Edit;
+    }
+
+    private void CloseForm()
+    {
+        mode = FormMode.None;
+        editingId = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        result = null;
+
+        try
+        {
+            result = mode == FormMode.Edit && editingId is Guid id
+                ? await OnUpdate(id, form)
+                : await OnAdd(form);
+
+            if (result.Succeeded)
+            {
+                CloseForm();
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(Guid slotId)
+    {
+        busy = true;
+        result = null;
+
+        try
+        {
+            result = await OnDelete(slotId);
+            confirmingDeleteId = null;
+
+            // If the deleted slot was open in the form, close the form too.
+            if (result.Succeeded && editingId == slotId)
+            {
+                CloseForm();
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    // The buttons on the right of each row. Delete first asks "Delete this time?" with Yes / No.
+    private RenderFragment SlotActions(AvailabilitySlotModel slot, bool canEdit)
+    {
+        string when = ProfileFormat.Range(slot.StartsAt, slot.EndsAt);
+
+        if (confirmingDeleteId == slot.Id)
+        {
+            return @<div class="slot__actions slot__actions--confirm" role="group" aria-label="Confirm delete">
+                <span class="slot__confirm-text">Delete this time?</span>
+                <button type="button" class="btn btn-danger btn-sm" disabled="@busy" @onclick="() => DeleteAsync(slot.Id)">Delete</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@busy" @onclick="() => confirmingDeleteId = null">Keep</button>
+            </div>;
+        }
+
+        return @<div class="slot__actions">
+            @if (canEdit)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@busy"
+                        aria-label="@($"Edit availability {when}")" @onclick="() => StartEditing(slot)">Edit</button>
+            }
+            <button type="button" class="btn btn-outline-danger btn-sm" disabled="@busy"
+                    aria-label="@($"Delete availability {when}")" @onclick="() => confirmingDeleteId = slot.Id">Delete</button>
+        </div>;
+    }
+}

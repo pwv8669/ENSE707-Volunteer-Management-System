@@ -1,0 +1,155 @@
+@using Volunteer_Management_System
+@* "Volunteering history" section: totals, a status filter, and the list of activities.
+   Wide screens get a table; phones get one card per activity, so nothing scrolls sideways. *@
+<ProfileSection Title="Volunteering history" Description="Events you've asked to help at, and what happened.">
+    <Actions>
+        @if (Entries.Count > 0)
+        {
+            <div class="btn-group btn-group-sm" role="group" aria-label="Filter history by status">
+                @foreach (HistoryFilter option in Enum.GetValues<HistoryFilter>())
+                {
+                    <button type="button" class="btn @(filter == option ? "btn-primary" : "btn-outline-primary")"
+                            aria-pressed="@(filter == option ? "true" : "false")" @onclick="() => filter = option">
+                        @option
+                    </button>
+                }
+            </div>
+        }
+    </Actions>
+    <ChildContent>
+        @if (Entries.Count == 0)
+        {
+            <div class="history-empty">
+                <p class="history-empty__title">No volunteering activity yet</p>
+                <p class="mb-0">When you request to help at an event, it will appear here with its status and the hours you log.</p>
+                @if (OnAddSampleData.HasDelegate)
+                {
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-3" @onclick="OnAddSampleData">
+                        Add sample history (development only)
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="history-stats">
+                <StatTile Value="@Summary.TotalActivities.ToString()" Label="Activities" />
+                <StatTile Value="@Summary.FulfilledActivities.ToString()" Label="Fulfilled" />
+                <StatTile Value="@Summary.PendingActivities.ToString()" Label="Pending" />
+                <StatTile Value="@ProfileFormat.Hours(Summary.TotalHours)" Label="Hours logged" />
+            </div>
+
+            if (Filtered.Count == 0)
+            {
+                <p class="history-none">No @filter.ToString().ToLowerInvariant() activities.</p>
+            }
+            else
+            {
+                @* Table for tablets and desktops. *@
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table align-middle history-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Event</th>
+                                <th scope="col">Date</th>
+                                <th scope="col">Location</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="text-end">Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (VolunteerHistoryEntry entry in Filtered)
+                            {
+                                <tr>
+                                    <td class="history-table__event">@entry.EventTitle</td>
+                                    <td>@EventWhen(entry)</td>
+                                    <td>@Fallback(entry.Location)</td>
+                                    <td>@StatusBadge(entry)</td>
+                                    <td class="text-end">@ProfileFormat.Hours(entry.HoursLogged)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* Cards for phones. *@
+                <ul class="history-cards d-md-none">
+                    @foreach (VolunteerHistoryEntry entry in Filtered)
+                    {
+                        <li class="history-card">
+                            <div class="history-card__top">
+                                <span class="history-card__title">@entry.EventTitle</span>
+                                @StatusBadge(entry)
+                            </div>
+                            <div class="history-card__meta">@EventWhen(entry)</div>
+                            <div class="history-card__meta">@Fallback(entry.Location)</div>
+                            <div class="history-card__hours">@ProfileFormat.Hours(entry.HoursLogged) logged</div>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </ChildContent>
+</ProfileSection>
+
+@code {
+    private enum HistoryFilter { All, Fulfilled, Pending, Declined }
+
+    // The volunteer's activities, newest first.
+    [Parameter, EditorRequired]
+    public IReadOnlyList<VolunteerHistoryEntry> Entries { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public VolunteerHistorySummary Summary { get; set; } = default!;
+
+    // The current local time, used to label events as upcoming.
+    [Parameter, EditorRequired]
+    public DateTime Now { get; set; }
+
+    // Only set in development: fills in demo history so the section isn't empty.
+    [Parameter]
+    public EventCallback OnAddSampleData { get; set; }
+
+    private HistoryFilter filter = HistoryFilter.All;
+
+    private List<VolunteerHistoryEntry> Filtered => filter switch
+    {
+        HistoryFilter.Fulfilled => Entries.Where(entry => entry.Status == VolunteerRequestStatus.Fulfilled).ToList(),
+        HistoryFilter.Pending => Entries.Where(entry => entry.Status == VolunteerRequestStatus.Pending).ToList(),
+        HistoryFilter.Declined => Entries.Where(entry => entry.Status == VolunteerRequestStatus.Declined).ToList(),
+        _ => Entries.ToList()
+    };
+
+    // Event date and time, with "Upcoming" for events that haven't started yet.
+    private RenderFragment EventWhen(VolunteerHistoryEntry entry)
+    {
+        if (entry.EventStart is not DateTime start || entry.EventEnd is not DateTime end)
+        {
+            return @<span class="text-body-secondary">Date unavailable</span>;
+        }
+
+        string when = ProfileFormat.Range(start, end);
+        if (start <= Now)
+        {
+            return @<span>@when</span>;
+        }
+
+        return @<span>@when <span class="badge rounded-pill text-bg-info ms-1">Upcoming</span></span>;
+    }
+
+    // Coloured status label: green Fulfilled, amber Pending, grey Declined.
+    private RenderFragment StatusBadge(VolunteerHistoryEntry entry)
+    {
+        string css = entry.Status switch
+        {
+            VolunteerRequestStatus.Fulfilled => "status-badge--fulfilled",
+            VolunteerRequestStatus.Pending => "status-badge--pending",
+            _ => "status-badge--declined"
+        };
+
+        return @<span class="status-badge @css">@entry.Status</span>;
+    }
+
+    private static string Fallback(string value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

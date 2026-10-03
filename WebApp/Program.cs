@@ -5,6 +5,8 @@ using Volunteer_Management_System;
 using WebApp.Components;
 using WebApp.Components.Account;
 using WebApp.Data;
+using WebApp.Services;
+using WebApp.Services.Profile;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +52,13 @@ builder.Services.AddSingleton<VolunteerOpportunityService>();
 builder.Services.AddSingleton<VolunteerRequestService>();
 builder.Services.AddSingleton<ReportingService>();
 
+// Volunteer Profile Management: history is built from the in-memory request and
+// opportunity services above; profile details and availability are saved in Postgres
+// through ApplicationDbContext. TimeProvider lets tests control "now".
+builder.Services.AddSingleton<VolunteerHistoryService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<VolunteerProfileService>();
+
 var app = builder.Build();
 
 // Ensure the supported roles exist and give pre-role accounts the default role.
@@ -59,6 +68,9 @@ await IdentityDataSeeder.SeedAsync(app.Services);
 if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
+
+    // Demo opportunities so the profile history and reporting pages have events to show locally.
+    DevelopmentSampleData.SeedOpportunities(app.Services.GetRequiredService<VolunteerOpportunityService>());
 }
 else
 {

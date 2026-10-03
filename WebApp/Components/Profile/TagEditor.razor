@@ -1,0 +1,216 @@
+@using Volunteer_Management_System
+@* Reusable editor for a list of short entries, used for both skills and interests.
+   View mode shows the saved entries as chips. Edit mode lets the volunteer add entries
+   (typed, or from suggestions), remove them, then Save or Cancel. The shared
+   ProfileTagRules from the domain library decide what counts as a valid entry. *@
+<div class="tag-editor">
+    <div class="tag-editor__header">
+        <h3 class="tag-editor__title" id="@titleId">@Title</h3>
+        @if (!editing)
+        {
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="StartEditing"
+                    aria-label="@($"Edit {Title.ToLowerInvariant()}")">Edit</button>
+        }
+        else
+        {
+            <span class="tag-editor__count">@draft.Count / @ProfileTagRules.MaxTags</span>
+        }
+    </div>
+
+    <StatusAlert Result="result" OnDismiss="() => result = null" />
+
+    @if (!editing)
+    {
+        if (Items.Count == 0)
+        {
+            <p class="tag-editor__empty">@EmptyText</p>
+        }
+        else
+        {
+            <ul class="tag-list" aria-labelledby="@titleId">
+                @foreach (string item in Items)
+                {
+                    <li class="tag tag--@Variant">@item</li>
+                }
+            </ul>
+        }
+    }
+    else
+    {
+        if (draft.Count > 0)
+        {
+            <ul class="tag-list" aria-labelledby="@titleId">
+                @foreach (string item in draft)
+                {
+                    <li class="tag tag--@Variant tag--removable">
+                        <span>@item</span>
+                        <button type="button" class="tag__remove" aria-label="@($"Remove {item}")"
+                                disabled="@saving" @onclick="() => Remove(item)">&times;</button>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="tag-editor__add">
+            <label class="visually-hidden" for="@inputId">@($"Add to {Title.ToLowerInvariant()}")</label>
+            <input id="@inputId" class="form-control @(inputError is null ? null : "is-invalid")"
+                   placeholder="@Placeholder" maxlength="@ProfileTagRules.MaxTagLength"
+                   @bind="newTag" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@saving"
+                   aria-describedby="@($"{inputId}-help")" />
+            <button type="button" class="btn btn-outline-primary" disabled="@saving" @onclick="AddTyped">Add</button>
+        </div>
+        if (inputError is not null)
+        {
+            <div class="invalid-feedback d-block" id="@($"{inputId}-help")">@inputError</div>
+        }
+        else
+        {
+            <div class="form-text" id="@($"{inputId}-help")">Press Enter or click Add. Up to @ProfileTagRules.MaxTagLength characters each.</div>
+        }
+
+        if (RemainingSuggestions.Count > 0)
+        {
+            <div class="tag-editor__suggestions">
+                <span class="tag-editor__suggestions-label">Suggestions:</span>
+                @foreach (string suggestion in RemainingSuggestions)
+                {
+                    <button type="button" class="btn btn-sm btn-light tag-suggestion" disabled="@saving"
+                            @onclick="() => Add(suggestion)">+ @suggestion</button>
+                }
+            </div>
+        }
+
+        <div class="tag-editor__actions">
+            <button type="button" class="btn btn-primary" disabled="@saving" @onclick="SaveAsync">
+                @if (saving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                }
+                Save
+            </button>
+            <button type="button" class="btn btn-outline-secondary" disabled="@saving" @onclick="CancelEditing">Cancel</button>
+        </div>
+    }
+</div>
+
+@code {
+    // Heading for this list, e.g. "Skills".
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    // The saved entries.
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Items { get; set; } = [];
+
+    // Saves the edited list and returns whether it worked.
+    [Parameter, EditorRequired]
+    public Func<IReadOnlyList<string>, Task<ProfileResult>> OnSave { get; set; } = default!;
+
+    // Common entries offered as one-click buttons while editing.
+    [Parameter]
+    public IReadOnlyList<string> Suggestions { get; set; } = [];
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Type and press Enter";
+
+    [Parameter]
+    public string EmptyText { get; set; } = "Nothing added yet.";
+
+    // Colour of the chips: "skill" (blue) or "interest" (green).
+    [Parameter]
+    public string Variant { get; set; } = "skill";
+
+    private readonly string titleId = $"tags-{Guid.NewGuid():N}";
+    private readonly string inputId = $"tag-input-{Guid.NewGuid():N}";
+
+    private bool editing;
+    private bool saving;
+    private List<string> draft = new();
+    private string newTag = string.Empty;
+    private string? inputError;
+    private ProfileResult? result;
+
+    // Suggestions that aren't already in the list (compared ignoring case).
+    private List<string> RemainingSuggestions =>
+        Suggestions
+            .Where(suggestion => !draft.Contains(suggestion, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+    // Work on a copy, so Cancel leaves the saved list untouched.
+    private void StartEditing()
+    {
+        draft = Items.ToList();
+        newTag = string.Empty;
+        inputError = null;
+        result = null;
+        editing = true;
+    }
+
+    private void CancelEditing()
+    {
+        editing = false;
+        inputError = null;
+        result = null;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            AddTyped();
+        }
+    }
+
+    private void AddTyped()
+    {
+        if (Add(newTag))
+        {
+            newTag = string.Empty;
+        }
+    }
+
+    // Adds one entry if the shared rules allow it; otherwise shows why not.
+    private bool Add(string value)
+    {
+        inputError = ProfileTagRules.Validate(value, draft);
+        if (inputError is not null)
+        {
+            return false;
+        }
+
+        draft.Add(ProfileTagRules.Normalize(value));
+        return true;
+    }
+
+    private void Remove(string value)
+    {
+        draft.Remove(value);
+        inputError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        // Anything still typed in the box is added before saving, so it isn't silently lost.
+        if (!string.IsNullOrWhiteSpace(newTag) && !Add(newTag))
+        {
+            return;
+        }
+
+        newTag = string.Empty;
+        saving = true;
+        result = null;
+
+        try
+        {
+            result = await OnSave(draft.ToList());
+            if (result.Succeeded)
+            {
+                editing = false;
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

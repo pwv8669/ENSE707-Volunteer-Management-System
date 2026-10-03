@@ -1,0 +1,42 @@
+@using Volunteer_Management_System
+@* Top of the profile page: avatar, name, contact line, how complete the profile is, and quick totals. *@
+<div class="profile-header">
+    <div class="profile-header__identity">
+        <div class="profile-header__avatar" aria-hidden="true">@Profile.Initials</div>
+        <div class="profile-header__text">
+            <p class="profile-header__name">@Profile.DisplayName</p>
+            <p class="profile-header__meta">
+                <span>@Profile.Email</span>
+                @if (Profile.PersonalDetails.City is not null)
+                {
+                    <span class="profile-header__dot" aria-hidden="true">·</span>
+                    <span>@Profile.PersonalDetails.City</span>
+                }
+            </p>
+            <div class="profile-header__completion">
+                <div class="progress" role="progressbar" aria-label="Profile completion"
+                     aria-valuenow="@Profile.CompletionPercent" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar @(Profile.CompletionPercent == 100 ? "bg-success" : string.Empty)"
+                         style="width: @(Profile.CompletionPercent)%"></div>
+                </div>
+                <span class="profile-header__completion-label">
+                    @(Profile.CompletionPercent == 100 ? "Profile complete" : $"Profile {Profile.CompletionPercent}% complete")
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-header__stats">
+        <StatTile Value="@ProfileFormat.Hours(Summary.TotalHours)" Label="Hours logged" />
+        <StatTile Value="@Summary.FulfilledActivities.ToString()" Label="Activities done" />
+        <StatTile Value="@Profile.Skills.Count.ToString()" Label="Skills listed" />
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public VolunteerProfileModel Profile { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public VolunteerHistorySummary Summary { get; set; } = default!;
+}
