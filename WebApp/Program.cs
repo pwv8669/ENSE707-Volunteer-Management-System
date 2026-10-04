@@ -6,6 +6,7 @@ using WebApp.Components;
 using WebApp.Components.Account;
 using WebApp.Data;
 using WebApp.Services;
+using WebApp.Services.Identity;
 using WebApp.Services.Profile;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,6 +42,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+builder.Services.AddScoped<UserRoleManagementService>();
 
 // Reporting and Dashboard: volunteer opportunity/request domain services.
 // These currently hold data in memory (see the domain library's service
@@ -61,8 +63,11 @@ builder.Services.AddScoped<VolunteerProfileService>();
 
 var app = builder.Build();
 
-// Ensure the supported roles exist and give pre-role accounts the default role.
-await IdentityDataSeeder.SeedAsync(app.Services);
+// Ensure the supported roles exist, give pre-role accounts the default role,
+// and promote the configured first administrator when the role is still empty.
+await IdentityDataSeeder.SeedAsync(
+    app.Services,
+    app.Configuration["Identity:BootstrapAdministratorEmail"]);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

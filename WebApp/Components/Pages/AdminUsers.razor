@@ -1,0 +1,133 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = AppRoles.OrganisationAdministrator)]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using WebApp.Data
+@using WebApp.Services.Identity
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserRoleManagementService RoleManagementService
+
+@* Organisation administrators use this page to assign one application role to each account.
+   UserRoleManagementService repeats the authorization check and protects the final administrator. *@
+<PageTitle>User role management</PageTitle>
+
+<h1>User role management</h1>
+<p>Assign the access level each account needs. Role changes take effect on active sessions after Identity revalidates them.</p>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert @(operationSucceeded ? "alert-success" : "alert-danger")" role="alert">
+        @statusMessage
+    </div>
+}
+
+@if (isLoading)
+{
+    <p role="status">Loading users...</p>
+}
+else if (users.Count == 0)
+{
+    <p>No user accounts were found.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">User</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (UserRoleSummary user in users)
+                {
+                    <tr>
+                        <td>@user.Email</td>
+                        <td>@user.DisplayName</td>
+                        <td>
+                            <select class="form-select"
+                                    aria-label="Role for @user.Email"
+                                    value="@user.Role"
+                                    disabled="@isSaving"
+                                    @onchange="eventArgs => ChangeRoleAsync(user, eventArgs.Value?.ToString())">
+                                @foreach (string role in AppRoles.All)
+                                {
+                                    <option value="@role">
+                                        @UserRoleManagementService.FormatRole(role)
+                                    </option>
+                                }
+                            </select>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<UserRoleSummary> users = [];
+    private string actingUserId = string.Empty;
+    private string? statusMessage;
+    private bool operationSucceeded;
+    private bool isLoading = true;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        actingUserId = authenticationState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier) ?? string.Empty;
+
+        try
+        {
+            users = await RoleManagementService.GetUsersAsync(actingUserId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            statusMessage = "You are not authorised to manage user roles.";
+            operationSucceeded = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChangeRoleAsync(
+        UserRoleSummary user,
+        string? selectedRole)
+    {
+        if (string.IsNullOrWhiteSpace(selectedRole))
+        {
+            return;
+        }
+
+        isSaving = true;
+        statusMessage = null;
+
+        try
+        {
+            RoleUpdateResult result =
+                await RoleManagementService.UpdateRoleAsync(
+                    actingUserId,
+                    user.Id,
+                    selectedRole);
+            operationSucceeded = result.Succeeded;
+            statusMessage = result.Message;
+            users = await RoleManagementService.GetUsersAsync(actingUserId);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            operationSucceeded = false;
+            statusMessage = "You are no longer authorised to manage user roles.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

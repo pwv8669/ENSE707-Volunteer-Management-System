@@ -103,6 +103,48 @@ namespace Volunteer_Management_System.Tests
                     AppRoles.Volunteer));
         }
 
+        // Test that configured bootstrapping promotes the first administrator and removes Volunteer.
+        [TestMethod]
+        public async Task SeedAsync_WithBootstrapEmail_PromotesFirstAdministrator()
+        {
+            await using ServiceProvider services = CreateServices();
+            const string administratorEmail = "administrator@example.com";
+            string userId;
+
+            await using (AsyncServiceScope setupScope = services.CreateAsyncScope())
+            {
+                UserManager<ApplicationUser> userManager =
+                    setupScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                ApplicationUser user = new()
+                {
+                    UserName = administratorEmail,
+                    Email = administratorEmail
+                };
+
+                IdentityResult createResult = await userManager.CreateAsync(user);
+                Assert.IsTrue(createResult.Succeeded);
+                userId = user.Id;
+            }
+
+            await IdentityDataSeeder.SeedAsync(services, administratorEmail);
+
+            await using AsyncServiceScope verificationScope = services.CreateAsyncScope();
+            UserManager<ApplicationUser> verificationUserManager =
+                verificationScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser? storedUser =
+                await verificationUserManager.FindByIdAsync(userId);
+
+            Assert.IsNotNull(storedUser);
+            Assert.IsTrue(
+                await verificationUserManager.IsInRoleAsync(
+                    storedUser,
+                    AppRoles.OrganisationAdministrator));
+            Assert.IsFalse(
+                await verificationUserManager.IsInRoleAsync(
+                    storedUser,
+                    AppRoles.Volunteer));
+        }
+
         // Creates an isolated Identity database for each test.
         private static ServiceProvider CreateServices()
         {
