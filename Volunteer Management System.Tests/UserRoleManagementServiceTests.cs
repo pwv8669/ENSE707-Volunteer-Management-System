@@ -39,6 +39,34 @@ namespace Volunteer_Management_System.Tests
                     AppRoles.Coordinator));
         }
 
+        // Test that a Coordinator cannot bypass the administrator-only page and call the service directly.
+        [TestMethod]
+        public async Task UpdateRoleAsync_WithCoordinatorActor_ThrowsUnauthorizedAccessException()
+        {
+            await using ServiceProvider services = CreateServices();
+            await IdentityDataSeeder.SeedAsync(services);
+
+            await using AsyncServiceScope scope = services.CreateAsyncScope();
+            UserManager<ApplicationUser> userManager =
+                scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ApplicationUser actor = await CreateUserAsync(
+                userManager,
+                "coordinator@example.com",
+                AppRoles.Coordinator);
+            ApplicationUser target = await CreateUserAsync(
+                userManager,
+                "target@example.com",
+                AppRoles.Volunteer);
+            UserRoleManagementService service =
+                new(userManager);
+
+            await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(() =>
+                service.UpdateRoleAsync(
+                    actor.Id,
+                    target.Id,
+                    AppRoles.OrganisationAdministrator));
+        }
+
         // Test that an administrator can replace a user's Volunteer role with Coordinator.
         [TestMethod]
         public async Task UpdateRoleAsync_WithAdministrator_ReplacesExistingRole()
