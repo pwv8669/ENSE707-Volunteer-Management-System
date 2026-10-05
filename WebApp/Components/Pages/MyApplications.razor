@@ -1,0 +1,149 @@
+﻿@page "/my-applications"
+
+@*
+    Purpose:
+    Allows a logged-in volunteer to view their submitted applications
+    and check the current status of each application.
+
+    Feature 3:
+    - Displays only applications belonging to the logged-in volunteer.
+    - Shows the related opportunity information.
+    - Displays Pending, Approved or Rejected application status.
+*@
+@using Microsoft.AspNetCore.Authorization
+@using Volunteer_Management_System
+@using WebApp.Services
+
+@attribute [Authorize(Roles = "Volunteer")]
+
+@inject VolunteerApplicationService ApplicationService
+@inject VolunteerOpportunityService OpportunityService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DomainUserService DomainUserService
+
+<PageTitle>My Applications</PageTitle>
+
+<h1>My Applications</h1>
+
+<p class="text-muted">
+    View the status of the volunteer opportunities you have applied for.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @ErrorMessage
+    </div>
+}
+
+@if (Applications.Count == 0)
+{
+    <div class="alert alert-info">
+        You have not submitted any volunteer applications yet.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Opportunity</th>
+                    <th>Location</th>
+                    <th>Applied</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (VolunteerApplication application in Applications)
+                {
+                    VolunteerOpportunity? opportunity =
+                        OpportunityService.FindOpportunityById(
+                            application.OpportunityId);
+
+                    <tr>
+                        <td>
+                            @(opportunity?.Title ?? "Unknown opportunity")
+                        </td>
+
+                        <td>
+                            @(opportunity?.Location ?? "-")
+                        </td>
+
+                        <td>
+                            @(application.AppliedAt.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                        </td>
+
+                        <td>
+                            <span class="badge @GetStatusClass(application.Status)">
+                                @application.Status
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private User? CurrentUser { get; set; }
+
+    private List<VolunteerApplication> Applications { get; set; }
+        = new();
+
+    private string? ErrorMessage { get; set; }
+
+    // Added for Feature 3:
+    // Loads the logged-in Volunteer and retrieves only applications
+    // that belong to that user.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            AuthenticationState authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            CurrentUser =
+                await DomainUserService.GetCurrentUserAsync(
+                    authenticationState.User);
+
+            if (CurrentUser.Role != Role.Volunteer)
+            {
+                throw new UnauthorizedAccessException(
+                    "Only volunteers can view their applications.");
+            }
+
+            Applications =
+                ApplicationService
+                    .GetApplicationsForVolunteer(CurrentUser.Id)
+                    .OrderByDescending(application =>
+                        application.AppliedAt)
+                    .ToList();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+    }
+
+    // Added for Feature 3:
+    // Provides a different Bootstrap badge style for each
+    // application status.
+    private static string GetStatusClass(
+        VolunteerApplicationStatus status)
+    {
+        return status switch
+        {
+            VolunteerApplicationStatus.Approved =>
+                "bg-success",
+
+            VolunteerApplicationStatus.Rejected =>
+                "bg-danger",
+
+            _ =>
+                "bg-warning text-dark"
+        };
+    }
+}

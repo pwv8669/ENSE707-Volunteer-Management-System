@@ -44,6 +44,46 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Added for WebApp integration:
+        // Creates a domain user using an existing ASP.NET Identity user ID
+        // so both the WebApp and core business logic refer to the same user.
+        public static User Create(
+            Guid id,
+            string username,
+            string email,
+            Role role)
+        {
+            if (id == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "User id is required.",
+                    nameof(id));
+            }
+
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                throw new ArgumentException(
+                    "Username is required.",
+                    nameof(username));
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentException(
+                    "Email is required.",
+                    nameof(email));
+            }
+
+            return new User
+            {
+                Id = id,
+                Username = username.Trim(),
+                Email = email.Trim().ToLowerInvariant(),
+                Role = role,
+                CreatedAt = DateTime.UtcNow
+            };
+        }
+
         // Update role (validation/authorization should be applied by higher layers)
         public void SetRole(Role newRole) => Role = newRole;
     }

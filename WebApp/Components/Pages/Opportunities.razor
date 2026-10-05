@@ -1,0 +1,570 @@
+﻿@page "/opportunities"
+
+@*
+    Purpose:
+    Provides the WebApp interface for volunteer opportunity management.
+
+    Feature 2:
+    - Coordinators and administrators can create, edit, publish, archive
+      and delete volunteer opportunities.
+    - Volunteers can browse published opportunities.
+
+    Feature 3:
+    - Volunteers can apply for published opportunities.
+    - The page prevents volunteers from submitting duplicate applications.
+*@
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Volunteer_Management_System
+@using WebApp.Services
+
+@attribute [Authorize]
+
+@inject VolunteerOpportunityService OpportunityService
+@inject VolunteerApplicationService ApplicationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DomainUserService DomainUserService
+
+<PageTitle>Volunteer Opportunities</PageTitle>
+
+<h1>Volunteer Opportunities</h1>
+
+@if (!string.IsNullOrWhiteSpace(StatusMessage))
+{
+    <div class="alert @StatusClass" role="alert">
+        @StatusMessage
+    </div>
+}
+
+@* Added for Feature 2:
+   Coordinators and Admins can create and manage volunteer opportunities. *@
+@if (CanManageOpportunities)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h4">
+                @(EditingOpportunityId.HasValue
+                    ? "Edit Opportunity"
+                    : "Create Opportunity")
+            </h2>
+
+            <EditForm Model="OpportunityForm"
+                      OnValidSubmit="SaveOpportunity">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <InputText class="form-control"
+                               @bind-Value="OpportunityForm.Title" />
+                    <ValidationMessage For="() => OpportunityForm.Title"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <InputTextArea class="form-control"
+                                   @bind-Value="OpportunityForm.Description" />
+                    <ValidationMessage For="() => OpportunityForm.Description"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Location</label>
+                    <InputText class="form-control"
+                               @bind-Value="OpportunityForm.Location" />
+                    <ValidationMessage For="() => OpportunityForm.Location"
+                                       class="text-danger" />
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Start Date and Time</label>
+                        <InputDate class="form-control"
+                                   Type="InputDateType.DateTimeLocal"
+                                   @bind-Value="OpportunityForm.StartDateTime" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">End Date and Time</label>
+                        <InputDate class="form-control"
+                                   Type="InputDateType.DateTimeLocal"
+                                   @bind-Value="OpportunityForm.EndDateTime" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Required Skills</label>
+                    <InputText class="form-control"
+                               @bind-Value="OpportunityForm.RequiredSkills" />
+                    <ValidationMessage For="() => OpportunityForm.RequiredSkills"
+                                       class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Volunteers Needed</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="OpportunityForm.VolunteersNeeded" />
+                    <ValidationMessage For="() => OpportunityForm.VolunteersNeeded"
+                                       class="text-danger" />
+                </div>
+
+                <button type="submit"
+                        class="btn btn-primary">
+                    @(EditingOpportunityId.HasValue
+                        ? "Save Changes"
+                        : "Create Opportunity")
+                </button>
+
+                @if (EditingOpportunityId.HasValue)
+                {
+                    <button type="button"
+                            class="btn btn-secondary ms-2"
+                            @onclick="CancelEdit">
+                        Cancel
+                    </button>
+                }
+            </EditForm>
+        </div>
+    </div>
+}
+
+@* Added for Feature 2:
+   Volunteers see only Published opportunities.
+   Coordinators and Admins can see every opportunity and its current status. *@
+@if (DisplayedOpportunities.Count == 0)
+{
+    <div class="alert alert-info">
+        No volunteer opportunities are currently available.
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (VolunteerOpportunity opportunity in DisplayedOpportunities)
+        {
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h2 class="h4">
+                                @opportunity.Title
+                            </h2>
+
+                            @if (CanManageOpportunities)
+                            {
+                                <span class="badge bg-secondary">
+                                    @opportunity.Status
+                                </span>
+                            }
+                        </div>
+
+                        <p>@opportunity.Description</p>
+
+                        <p>
+                            <strong>Location:</strong>
+                            @opportunity.Location
+                        </p>
+
+                        <p>
+                            <strong>Start:</strong>
+                            @(opportunity.StartDateTime.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                        </p>
+
+                        <p>
+                            <strong>End:</strong>
+                            @(opportunity.EndDateTime.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                        </p>
+
+                        <p>
+                            <strong>Required Skills:</strong>
+                            @opportunity.RequiredSkills
+                        </p>
+
+                        <p>
+                            <strong>Volunteers Needed:</strong>
+                            @opportunity.VolunteersNeeded
+                        </p>
+
+                        @* Added for Feature 3:
+                           Volunteers can apply for Published opportunities.
+                           An Applied button is shown when the volunteer has
+                           already submitted an application. *@
+                        @if (CurrentUser?.Role == Role.Volunteer)
+                        {
+                            <div class="mt-3">
+                                @if (HasApplied(opportunity.Id))
+                                {
+                                    <button class="btn btn-sm btn-secondary"
+                                            disabled>
+                                        Applied
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => ApplyForOpportunity(opportunity.Id)">
+                                        Apply
+                                    </button>
+                                }
+                            </div>
+                        }
+                        @* Added for Feature 2 management:
+                           Only Coordinator/Admin users receive management
+                           controls for the opportunity. *@
+                        @if (CanManageOpportunities)
+                        {
+                            <div class="mt-3">
+                                <button class="btn btn-sm btn-outline-primary me-2"
+                                        @onclick="() => BeginEdit(opportunity)">
+                                    Edit
+                                </button>
+
+                                @if (opportunity.Status ==
+                                    OpportunityStatus.Draft)
+                                {
+                                    <button class="btn btn-sm btn-success me-2"
+                                            @onclick="() => PublishOpportunity(opportunity.Id)">
+                                        Publish
+                                    </button>
+                                }
+
+                                @if (opportunity.Status !=
+                                    OpportunityStatus.Archived)
+                                {
+                                    <button class="btn btn-sm btn-warning me-2"
+                                            @onclick="() => ArchiveOpportunity(opportunity.Id)">
+                                        Archive
+                                    </button>
+                                }
+
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeleteOpportunity(opportunity.Id)">
+                                    Delete
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private User? CurrentUser { get; set; }
+
+    private bool CanManageOpportunities =>
+        CurrentUser?.Role == Role.Coordinator ||
+        CurrentUser?.Role == Role.Admin;
+
+    private List<VolunteerOpportunity> DisplayedOpportunities { get; set; }
+        = new();
+
+    private OpportunityInputModel OpportunityForm { get; set; }
+        = CreateEmptyForm();
+
+    private Guid? EditingOpportunityId { get; set; }
+
+    private string? StatusMessage { get; set; }
+
+    private string StatusClass { get; set; } = "alert-info";
+
+    // Added for Feature 2 WebApp integration:
+    // Loads the logged-in user and displays the correct opportunity list
+    // depending on whether they are a Volunteer or a Coordinator/Admin.
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState authenticationState =
+            await AuthenticationStateProvider
+                .GetAuthenticationStateAsync();
+
+        CurrentUser =
+            await DomainUserService.GetCurrentUserAsync(
+                authenticationState.User);
+
+        RefreshOpportunities();
+    }
+
+    // Added for Feature 2:
+    // Creates a new opportunity or saves changes to the opportunity
+    // currently being edited.
+    // Added for Feature 3:
+    // Checks whether the current volunteer has already applied for
+    // a specific opportunity.
+    private bool HasApplied(Guid opportunityId)
+    {
+        if (CurrentUser == null ||
+            CurrentUser.Role != Role.Volunteer)
+        {
+            return false;
+        }
+
+        return ApplicationService
+            .GetApplicationsForVolunteer(CurrentUser.Id)
+            .Any(application =>
+                application.OpportunityId == opportunityId);
+    }
+
+    // Added for Feature 3:
+    // Submits an application for the currently logged-in Volunteer.
+    // VolunteerApplicationService applies the existing business rules,
+    // including preventing duplicate applications.
+    private void ApplyForOpportunity(Guid opportunityId)
+    {
+        try
+        {
+            if (CurrentUser == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "You must be logged in to apply.");
+            }
+
+            ApplicationService.SubmitApplication(
+                CurrentUser,
+                opportunityId);
+
+            SetSuccessMessage(
+                "Application submitted successfully.");
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(exception.Message);
+        }
+    }
+    private void SaveOpportunity()
+    {
+        try
+        {
+            if (!CanManageOpportunities)
+            {
+                throw new UnauthorizedAccessException(
+                    "Only coordinators or administrators can manage opportunities.");
+            }
+
+            if (EditingOpportunityId.HasValue)
+            {
+                OpportunityService.UpdateOpportunity(
+                    EditingOpportunityId.Value,
+                    OpportunityForm.Title,
+                    OpportunityForm.Description,
+                    OpportunityForm.Location,
+                    OpportunityForm.StartDateTime,
+                    OpportunityForm.EndDateTime,
+                    OpportunityForm.RequiredSkills,
+                    OpportunityForm.VolunteersNeeded);
+
+                SetSuccessMessage(
+                    "Volunteer opportunity updated successfully.");
+            }
+            else
+            {
+                OpportunityService.CreateOpportunity(
+                    OpportunityForm.Title,
+                    OpportunityForm.Description,
+                    OpportunityForm.Location,
+                    OpportunityForm.StartDateTime,
+                    OpportunityForm.EndDateTime,
+                    OpportunityForm.RequiredSkills,
+                    OpportunityForm.VolunteersNeeded);
+
+                SetSuccessMessage(
+                    "Volunteer opportunity created successfully.");
+            }
+
+            ResetForm();
+            RefreshOpportunities();
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(exception.Message);
+        }
+    }
+
+    // Added for Feature 2:
+    // Loads an existing opportunity into the form so a Coordinator/Admin
+    // can edit its details.
+    private void BeginEdit(
+        VolunteerOpportunity opportunity)
+    {
+        EditingOpportunityId = opportunity.Id;
+
+        OpportunityForm = new OpportunityInputModel
+        {
+            Title = opportunity.Title,
+            Description = opportunity.Description,
+            Location = opportunity.Location,
+            StartDateTime = opportunity.StartDateTime,
+            EndDateTime = opportunity.EndDateTime,
+            RequiredSkills = opportunity.RequiredSkills,
+            VolunteersNeeded = opportunity.VolunteersNeeded
+        };
+
+        StatusMessage = null;
+    }
+
+    // Added for Feature 2:
+    // Cancels editing and resets the form for creating a new opportunity.
+    private void CancelEdit()
+    {
+        ResetForm();
+        StatusMessage = null;
+    }
+
+    // Added for Feature 2:
+    // Changes a Draft opportunity to Published so Volunteers can see it.
+    private void PublishOpportunity(Guid opportunityId)
+    {
+        try
+        {
+            OpportunityService.PublishOpportunity(
+                opportunityId);
+
+            SetSuccessMessage(
+                "Volunteer opportunity published successfully.");
+
+            RefreshOpportunities();
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(exception.Message);
+        }
+    }
+
+    // Added for Feature 2:
+    // Archives an opportunity so it is no longer displayed to Volunteers.
+    private void ArchiveOpportunity(Guid opportunityId)
+    {
+        try
+        {
+            OpportunityService.ArchiveOpportunity(
+                opportunityId);
+
+            SetSuccessMessage(
+                "Volunteer opportunity archived successfully.");
+
+            RefreshOpportunities();
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(exception.Message);
+        }
+    }
+
+    // Added for Feature 2:
+    // Permanently removes an opportunity from the current in-memory service.
+    private void DeleteOpportunity(Guid opportunityId)
+    {
+        try
+        {
+            bool deleted =
+                OpportunityService.DeleteOpportunity(
+                    opportunityId);
+
+            if (deleted)
+            {
+                SetSuccessMessage(
+                    "Volunteer opportunity deleted successfully.");
+            }
+            else
+            {
+                SetErrorMessage(
+                    "Volunteer opportunity could not be found.");
+            }
+
+            if (EditingOpportunityId == opportunityId)
+            {
+                ResetForm();
+            }
+
+            RefreshOpportunities();
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(exception.Message);
+        }
+    }
+
+    // Added for Feature 2:
+    // Coordinators/Admins receive every opportunity.
+    // Volunteers receive only Published opportunities.
+    private void RefreshOpportunities()
+    {
+        if (CanManageOpportunities)
+        {
+            DisplayedOpportunities =
+                OpportunityService
+                    .GetAllOpportunities()
+                    .ToList();
+        }
+        else
+        {
+            DisplayedOpportunities =
+                OpportunityService
+                    .GetPublishedOpportunities()
+                    .ToList();
+        }
+    }
+
+    // Added for Feature 2:
+    // Clears the edit state and prepares default future dates for a
+    // new opportunity.
+    private void ResetForm()
+    {
+        EditingOpportunityId = null;
+        OpportunityForm = CreateEmptyForm();
+    }
+
+    private static OpportunityInputModel CreateEmptyForm()
+    {
+        DateTime start =
+            DateTime.Now.AddDays(1);
+
+        return new OpportunityInputModel
+        {
+            StartDateTime = start,
+            EndDateTime = start.AddHours(2),
+            VolunteersNeeded = 1
+        };
+    }
+
+    private void SetSuccessMessage(string message)
+    {
+        StatusMessage = message;
+        StatusClass = "alert-success";
+    }
+
+    private void SetErrorMessage(string message)
+    {
+        StatusMessage = message;
+        StatusClass = "alert-danger";
+    }
+
+    // Added for Feature 2:
+    // Holds and validates the values entered in the opportunity form
+    // before they are passed to VolunteerOpportunityService.
+    private sealed class OpportunityInputModel
+    {
+        [Required]
+        public string Title { get; set; } = string.Empty;
+
+        [Required]
+        public string Description { get; set; } = string.Empty;
+
+        [Required]
+        public string Location { get; set; } = string.Empty;
+
+        public DateTime StartDateTime { get; set; }
+
+        public DateTime EndDateTime { get; set; }
+
+        [Required]
+        public string RequiredSkills { get; set; } = string.Empty;
+
+        [Range(
+            1,
+            int.MaxValue,
+            ErrorMessage = "At least one volunteer is required.")]
+        public int VolunteersNeeded { get; set; }
+    }
+}

@@ -37,8 +37,36 @@
             </NavLink>
         </div>
 
-        <AuthorizeView>
+        <AuthorizeView Context="authContext">
             <Authorized>
+                @* Added for Feature 2:
+                   All signed-in users can view volunteer opportunities. *@
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="opportunities">
+                        <span class="bi bi-list-task-nav-menu" aria-hidden="true"></span> Opportunities
+                    </NavLink>
+                </div>
+
+                @* Added for Feature 3:
+                   Volunteers can view their submitted applications. *@
+                <AuthorizeView Roles="Volunteer" Context="volunteerRoleContext">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="my-applications">
+                            <span class="bi bi-file-earmark-text-nav-menu" aria-hidden="true"></span> My Applications
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
+
+                @* Added for Feature 4:
+                   Coordinators and Organisation Administrators can review
+                   applications and manage volunteer assignments. *@
+                <AuthorizeView Roles="Coordinator,OrganisationAdministrator" Context="managerRoleContext">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="assignments">
+                            <span class="bi bi-people-nav-menu" aria-hidden="true"></span> Volunteer Assignments
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="profile">
                         <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> My profile
@@ -58,7 +86,7 @@
                 </AuthorizeView>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @authContext.User.Identity?.Name
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
@@ -107,4 +135,3 @@
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }
-

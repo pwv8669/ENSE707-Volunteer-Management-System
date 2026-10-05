@@ -1,0 +1,424 @@
+﻿@page "/assignments"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Volunteer_Management_System
+@using WebApp.Data
+@using WebApp.Services
+
+@attribute [Authorize(Roles = "Coordinator,OrganisationAdministrator")]
+
+@inject VolunteerOpportunityService OpportunityService
+@inject VolunteerApplicationService ApplicationService
+@inject VolunteerAssignmentService AssignmentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DomainUserService DomainUserService
+@inject AvailabilitySyncService AvailabilitySyncService
+@inject UserManager<ApplicationUser> UserManager
+
+@*
+    Purpose:
+    Provides the Coordinator / Organisation Administrator interface for
+    reviewing volunteer applications and managing volunteer assignments.
+
+    Feature 4:
+    - Displays pending applications for published opportunities.
+    - Approves applications and assigns suitable volunteers.
+    - Rejects applications.
+    - Checks volunteer availability before assignment.
+    - Displays active volunteer assignments.
+    - Allows assignments to be cancelled.
+
+    Integration:
+    Volunteer availability is read from the existing Volunteer Profile
+    database through AvailabilitySyncService before assignment.
+*@
+
+<PageTitle>Volunteer Assignments</PageTitle>
+
+<h1>Volunteer Assignments</h1>
+
+<p class="text-muted">
+    Review volunteer applications and manage assignments.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(StatusMessage))
+{
+    <div class="alert @StatusClass" role="alert">
+        @StatusMessage
+    </div>
+}
+
+@if (PublishedOpportunities.Count == 0)
+{
+    <div class="alert alert-info">
+        There are no published volunteer opportunities.
+    </div>
+}
+else
+{
+    @foreach (VolunteerOpportunity opportunity in PublishedOpportunities)
+    {
+        IReadOnlyList<VolunteerApplication> pendingApplications =
+            AssignmentService.GetPendingApplicationsForOpportunity(
+                opportunity.Id);
+
+        IReadOnlyList<VolunteerAssignment> assignments =
+            AssignmentService.GetAssignmentsForOpportunity(
+                opportunity.Id);
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h2 class="h4">
+                            @opportunity.Title
+                        </h2>
+
+                        <p class="mb-1">
+                            <strong>Location:</strong>
+                            @opportunity.Location
+                        </p>
+
+                        <p class="mb-1">
+                            <strong>Date:</strong>
+                            @(opportunity.StartDateTime.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                        </p>
+
+                        <p class="mb-3">
+                            <strong>Remaining Capacity:</strong>
+                            @AssignmentService.GetRemainingCapacity(
+                                opportunity.Id)
+                        </p>
+                    </div>
+
+                    <span class="badge bg-success">
+                        @opportunity.Status
+                    </span>
+                </div>
+
+                <h3 class="h5 mt-3">
+                    Pending Applications
+                </h3>
+
+                @if (pendingApplications.Count == 0)
+                {
+                    <p class="text-muted">
+                        No pending applications for this opportunity.
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Volunteer</th>
+                                    <th>Applied</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (
+                                    VolunteerApplication application
+                                    in pendingApplications)
+                                {
+                                    <tr>
+                                        <td>
+                                            @VolunteerName(
+                                                application.VolunteerId)
+                                        </td>
+
+                                        <td>
+                                            @(application.AppliedAt.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                                        </td>
+
+                                        <td>
+                                            <button
+                                                class="btn btn-sm btn-success me-2"
+                                                @onclick="() => ApproveApplicationAsync(application)">
+                                                Approve & Assign
+                                            </button>
+
+                                            <button
+                                                class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RejectApplication(application)">
+                                                Reject
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <h3 class="h5 mt-4">
+                    Assigned Volunteers
+                </h3>
+
+                @if (assignments.Count == 0)
+                {
+                    <p class="text-muted">
+                        No volunteers are currently assigned.
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Volunteer</th>
+                                    <th>Assigned</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (
+                                    VolunteerAssignment assignment
+                                    in assignments)
+                                {
+                                    <tr>
+                                        <td>
+                                            @VolunteerName(
+                                                assignment.VolunteerId)
+                                        </td>
+
+                                        <td>
+                                            @(assignment.AssignedAt.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"))
+                                        </td>
+
+                                        <td>
+                                            @assignment.Status
+                                        </td>
+
+                                        <td>
+                                            <button
+                                                class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => CancelAssignment(assignment.Id)">
+                                                Cancel
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private User? CurrentUser { get; set; }
+
+    private List<VolunteerOpportunity>
+        PublishedOpportunities { get; set; } = new();
+
+    private Dictionary<Guid, string>
+        VolunteerNames { get; set; } = new();
+
+    private string? StatusMessage { get; set; }
+
+    private string StatusClass { get; set; } =
+        "alert-info";
+
+    // Loads the signed-in reviewer, published opportunities and
+    // volunteer names needed by the assignment page.
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState authenticationState =
+            await AuthenticationStateProvider
+                .GetAuthenticationStateAsync();
+
+        CurrentUser =
+            await DomainUserService
+                .GetCurrentUserAsync(
+                    authenticationState.User);
+
+        if (CurrentUser.Role != Role.Coordinator &&
+            CurrentUser.Role != Role.Admin)
+        {
+            throw new UnauthorizedAccessException(
+                "Only coordinators or organisation administrators can manage assignments.");
+        }
+
+        RefreshOpportunities();
+
+        await LoadVolunteerNamesAsync();
+    }
+
+    // Approves a pending application and creates an assignment.
+    //
+    // Before the core assignment service performs its checks,
+    // the volunteer's latest availability is synchronised from the
+    // existing Volunteer Profile database.
+    private async Task ApproveApplicationAsync(
+        VolunteerApplication application)
+    {
+        try
+        {
+            if (CurrentUser == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "A reviewer account could not be found.");
+            }
+
+            await AvailabilitySyncService
+                .SyncVolunteerAvailabilityAsync(
+                    application.VolunteerId);
+
+            AssignmentService.ApproveAndAssign(
+                CurrentUser,
+                application.Id);
+
+            SetSuccessMessage(
+                "Application approved and volunteer assigned successfully.");
+
+            await RefreshPageDataAsync();
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(
+                exception.Message);
+        }
+    }
+
+    // Rejects a pending volunteer application.
+    private void RejectApplication(
+        VolunteerApplication application)
+    {
+        try
+        {
+            if (CurrentUser == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "A reviewer account could not be found.");
+            }
+
+            AssignmentService.RejectApplication(
+                CurrentUser,
+                application.Id);
+
+            SetSuccessMessage(
+                "Application rejected successfully.");
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(
+                exception.Message);
+        }
+    }
+
+    // Cancels an active volunteer assignment.
+    private void CancelAssignment(
+        Guid assignmentId)
+    {
+        try
+        {
+            if (CurrentUser == null)
+            {
+                throw new UnauthorizedAccessException(
+                    "A reviewer account could not be found.");
+            }
+
+            AssignmentService.CancelAssignment(
+                CurrentUser,
+                assignmentId);
+
+            SetSuccessMessage(
+                "Volunteer assignment cancelled successfully.");
+        }
+        catch (Exception exception)
+        {
+            SetErrorMessage(
+                exception.Message);
+        }
+    }
+
+    // Loads the currently published opportunities that can receive
+    // volunteer assignments.
+    private void RefreshOpportunities()
+    {
+        PublishedOpportunities =
+            OpportunityService
+                .GetPublishedOpportunities()
+                .ToList();
+    }
+
+    // Refreshes opportunity information and volunteer names after an
+    // application has been approved and assigned.
+    private async Task RefreshPageDataAsync()
+    {
+        RefreshOpportunities();
+        await LoadVolunteerNamesAsync();
+    }
+
+    // Resolves domain volunteer Guid values to the Identity account
+    // names used by the WebApp.
+    private async Task LoadVolunteerNamesAsync()
+    {
+        IEnumerable<Guid> volunteerIds =
+            ApplicationService
+                .GetAllApplications()
+                .Select(application =>
+                    application.VolunteerId)
+                .Concat(
+                    PublishedOpportunities
+                        .SelectMany(opportunity =>
+                            AssignmentService
+                                .GetAssignmentsForOpportunity(
+                                    opportunity.Id))
+                        .Select(assignment =>
+                            assignment.VolunteerId))
+                .Distinct();
+
+        foreach (Guid volunteerId in volunteerIds)
+        {
+            if (VolunteerNames.ContainsKey(
+                volunteerId))
+            {
+                continue;
+            }
+
+            ApplicationUser? identityUser =
+                await UserManager.FindByIdAsync(
+                    volunteerId.ToString());
+
+            VolunteerNames[volunteerId] =
+                identityUser?.UserName
+                ?? identityUser?.Email
+                ?? volunteerId.ToString();
+        }
+    }
+
+    // Returns a readable account name for one volunteer.
+    private string VolunteerName(
+        Guid volunteerId)
+    {
+        return VolunteerNames.TryGetValue(
+            volunteerId,
+            out string? name)
+            ? name
+            : volunteerId.ToString();
+    }
+
+    private void SetSuccessMessage(
+        string message)
+    {
+        StatusMessage = message;
+        StatusClass = "alert-success";
+    }
+
+    private void SetErrorMessage(
+        string message)
+    {
+        StatusMessage = message;
+        StatusClass = "alert-danger";
+    }
+}

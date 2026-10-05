@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components.Authorization;
+﻿using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Volunteer_Management_System;
@@ -56,6 +56,29 @@ builder.Services.AddSingleton<VolunteerOpportunityService>();
 builder.Services.AddSingleton<VolunteerRequestService>();
 builder.Services.AddSingleton<ReportingService>();
 
+// Added for Feature 3 WebApp integration:
+// Provides volunteer application functionality such as submitting
+// applications and viewing application status.
+builder.Services.AddSingleton<VolunteerApplicationService>();
+
+// Added for Feature 4 WebApp integration:
+// Stores the domain availability used during volunteer assignment checks.
+builder.Services.AddSingleton<VolunteerAvailabilityService>();
+
+// Added for Feature 4 WebApp integration:
+// Handles application review, assignment, capacity, availability and
+// scheduling conflict checks.
+builder.Services.AddSingleton<VolunteerAssignmentService>();
+
+// Added for Features 3 and 4 WebApp integration:
+// Converts the logged-in ASP.NET Identity account into the domain User model.
+builder.Services.AddScoped<DomainUserService>();
+
+// Added for Feature 4 WebApp integration:
+// Synchronises availability from the existing Volunteer Profile database
+// with the domain availability service before assignment.
+builder.Services.AddScoped<AvailabilitySyncService>();
+
 // Volunteer Profile Management: history is built from the in-memory request and
 // opportunity services above; profile details and availability are saved in Postgres
 // through ApplicationDbContext. TimeProvider lets tests control "now".
@@ -85,6 +108,7 @@ else
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
