@@ -32,6 +32,10 @@ namespace Volunteer_Management_System
         // should be enforced during assignment.
         private readonly VolunteerAvailabilityService? _availabilityService;
 
+        // Optional notification service used by the WebApp to tell volunteers
+        // when an assigned shift is created or cancelled.
+        private readonly VolunteerShiftNotificationService? _notificationService;
+
         // Stores volunteer assignments currently managed by this service.
         private readonly List<VolunteerAssignment> _assignments = new();
 
@@ -53,6 +57,7 @@ namespace Volunteer_Management_System
                     nameof(applicationService));
 
             _availabilityService = null;
+            _notificationService = null;
         }
 
         // Creates the assignment service with availability checking enabled.
@@ -77,6 +82,38 @@ namespace Volunteer_Management_System
                 availabilityService
                 ?? throw new ArgumentNullException(
                     nameof(availabilityService));
+
+            _notificationService = null;
+        }
+
+        // Creates the assignment service with availability checks and Feature 5
+        // in-app shift notifications enabled. Dependency injection uses this
+        // constructor in the WebApp because both services are registered.
+        public VolunteerAssignmentService(
+            VolunteerOpportunityService opportunityService,
+            VolunteerApplicationService applicationService,
+            VolunteerAvailabilityService availabilityService,
+            VolunteerShiftNotificationService notificationService)
+        {
+            _opportunityService =
+                opportunityService
+                ?? throw new ArgumentNullException(
+                    nameof(opportunityService));
+
+            _applicationService =
+                applicationService
+                ?? throw new ArgumentNullException(
+                    nameof(applicationService));
+
+            _availabilityService =
+                availabilityService
+                ?? throw new ArgumentNullException(
+                    nameof(availabilityService));
+
+            _notificationService =
+                notificationService
+                ?? throw new ArgumentNullException(
+                    nameof(notificationService));
         }
 
         // Returns all Pending applications submitted for a specific
@@ -172,6 +209,12 @@ namespace Volunteer_Management_System
             _assignments.Add(assignment);
 
             application.Approve(reviewer.Id);
+
+            // The assignment is complete before the volunteer is notified, so
+            // the schedule already contains the shift when they open it.
+            _notificationService?.NotifyAssigned(
+                assignment,
+                opportunity);
 
             return assignment;
         }
@@ -269,6 +312,17 @@ namespace Volunteer_Management_System
             }
 
             assignment.Cancel();
+
+            VolunteerOpportunity? opportunity =
+                _opportunityService.FindOpportunityById(
+                    assignment.OpportunityId);
+
+            if (opportunity is not null)
+            {
+                _notificationService?.NotifyCancelled(
+                    assignment,
+                    opportunity);
+            }
         }
 
         // Checks whether the opportunity still has available volunteer

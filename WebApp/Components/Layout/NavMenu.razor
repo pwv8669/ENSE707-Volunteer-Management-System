@@ -1,7 +1,10 @@
 ﻿@implements IDisposable
 
+@using System.Security.Claims
+@using Volunteer_Management_System
 @using WebApp.Data
 @inject NavigationManager NavigationManager
+@inject VolunteerShiftNotificationService NotificationService
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -38,9 +41,28 @@
                 @* Added for Feature 3:
                    Volunteers can view their submitted applications. *@
                 <AuthorizeView Roles="Volunteer" Context="volunteerRoleContext">
+                    @{
+                        int unreadShiftNotifications =
+                            GetUnreadShiftNotificationCount(
+                                volunteerRoleContext.User);
+                    }
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="my-applications">
                             <span class="bi bi-file-earmark-text-nav-menu" aria-hidden="true"></span> My Applications
+                        </NavLink>
+                    </div>
+
+                    @* Added for Feature 5:
+                       Volunteers can view assigned shifts and unread shift notifications. *@
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="my-schedule">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> My Schedule
+                            @if (unreadShiftNotifications > 0)
+                            {
+                                <span class="badge rounded-pill bg-danger ms-1">
+                                    @unreadShiftNotifications
+                                </span>
+                            }
                         </NavLink>
                     </div>
                 </AuthorizeView>
@@ -110,6 +132,7 @@
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
+        NotificationService.NotificationsChanged += OnNotificationsChanged;
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -118,8 +141,30 @@
         StateHasChanged();
     }
 
+    // Resolves the Identity Guid from the current claims before reading the
+    // volunteer's notification count.
+    private int GetUnreadShiftNotificationCount(ClaimsPrincipal principal)
+    {
+        string? userId =
+            principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        return Guid.TryParse(userId, out Guid volunteerId)
+            ? NotificationService
+                .GetUnreadNotificationsForVolunteer(volunteerId)
+                .Count
+            : 0;
+    }
+
+    // Notifications can be raised by a coordinator's Blazor circuit, so the
+    // navigation menu refresh is dispatched back to this component's circuit.
+    private void OnNotificationsChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
+        NotificationService.NotificationsChanged -= OnNotificationsChanged;
     }
 }

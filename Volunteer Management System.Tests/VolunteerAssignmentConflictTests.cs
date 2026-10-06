@@ -11,7 +11,7 @@
 // - Remaining volunteer capacity is calculated correctly.
 //
 // This test file supports Feature 4: Volunteer Assignment and Availability,
-// while also preparing conflict-management behaviour for scheduling.
+// and verifies Feature 5's scheduling-conflict prevention requirement.
 
 
 using System;

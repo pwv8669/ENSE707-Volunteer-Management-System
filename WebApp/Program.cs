@@ -65,10 +65,20 @@ builder.Services.AddSingleton<VolunteerApplicationService>();
 // Stores the domain availability used during volunteer assignment checks.
 builder.Services.AddSingleton<VolunteerAvailabilityService>();
 
+// Added for Feature 5 WebApp integration:
+// Stores in-app assignment notifications for volunteers. This follows the
+// current in-memory lifetime used by opportunities and assignments.
+builder.Services.AddSingleton<VolunteerShiftNotificationService>();
+
 // Added for Feature 4 WebApp integration:
 // Handles application review, assignment, capacity, availability and
-// scheduling conflict checks.
+// scheduling conflict checks. The Feature 5 notification dependency causes
+// assignment and cancellation notifications to be created automatically.
 builder.Services.AddSingleton<VolunteerAssignmentService>();
+
+// Added for Feature 5 WebApp integration:
+// Builds each volunteer's schedule from active assignments and opportunities.
+builder.Services.AddSingleton<VolunteerScheduleService>();
 
 // Added for Features 3 and 4 WebApp integration:
 // Converts the logged-in ASP.NET Identity account into the domain User model.

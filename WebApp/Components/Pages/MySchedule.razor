@@ -1,0 +1,269 @@
+@page "/my-schedule"
+@attribute [Authorize(Roles = AppRoles.Volunteer)]
+@implements IDisposable
+
+@using Microsoft.AspNetCore.Authorization
+@using Volunteer_Management_System
+@using WebApp.Data
+@using WebApp.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DomainUserService DomainUserService
+@inject VolunteerScheduleService ScheduleService
+@inject VolunteerShiftNotificationService NotificationService
+@inject TimeProvider Clock
+
+@*
+    Volunteer Scheduling and Calendar (Feature 5):
+    - Displays the signed-in volunteer's assigned shifts in date order.
+    - Shows in-app notifications when shifts are assigned or cancelled.
+    - Scheduling conflicts are prevented by VolunteerAssignmentService before
+      an assignment reaches this page.
+*@
+<PageTitle>My Schedule</PageTitle>
+
+<h1>My Schedule</h1>
+<p class="text-muted">
+    View your assigned volunteer shifts and recent assignment notifications.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @ErrorMessage
+    </div>
+}
+else if (CurrentUser is null)
+{
+    <p role="status">Loading your schedule...</p>
+}
+else
+{
+    <section class="mb-4" aria-labelledby="shift-notifications-heading">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 id="shift-notifications-heading" class="h4 mb-0">
+                Shift notifications
+            </h2>
+
+            @if (UnreadNotifications.Count > 0)
+            {
+                <button class="btn btn-sm btn-outline-secondary"
+                        @onclick="MarkNotificationsAsRead">
+                    Mark all as read
+                </button>
+            }
+        </div>
+
+        @if (Notifications.Count == 0)
+        {
+            <div class="alert alert-info">
+                You do not have any shift notifications yet.
+            </div>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (VolunteerShiftNotification notification
+                    in Notifications.Take(5))
+                {
+                    <div class="list-group-item @(notification.IsRead ? string.Empty : "list-group-item-primary")">
+                        <div class="d-flex justify-content-between gap-3">
+                            <div>
+                                <strong>@NotificationHeading(notification)</strong>
+                                <div>
+                                    @notification.OpportunityTitle
+                                    on @FormatDateTime(notification.ShiftStartsAt)
+                                </div>
+                            </div>
+                            <small class="text-muted text-nowrap">
+                                @notification.CreatedAt.ToLocalTime().ToString("dd MMM, h:mm tt")
+                            </small>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <section aria-labelledby="upcoming-shifts-heading">
+        <h2 id="upcoming-shifts-heading" class="h4">Upcoming shifts</h2>
+
+        @if (UpcomingShifts.Count == 0)
+        {
+            <div class="alert alert-info">
+                You do not have any upcoming assigned shifts.
+            </div>
+        }
+        else
+        {
+            @foreach (IGrouping<DateTime, VolunteerScheduledShift> day
+                in UpcomingShifts.GroupBy(shift => LocalTime(shift.StartsAt).Date))
+            {
+                <h3 class="h5 mt-4">
+                    @day.Key.ToString("dddd, dd MMMM yyyy")
+                </h3>
+
+                <div class="list-group mb-3">
+                    @foreach (VolunteerScheduledShift shift in day)
+                    {
+                        <article class="list-group-item">
+                            <div class="row align-items-start">
+                                <div class="col-md-3 fw-semibold">
+                                    @FormatTimeRange(shift)
+                                </div>
+                                <div class="col-md-9">
+                                    <h4 class="h6 mb-1">@shift.Title</h4>
+                                    <div>@shift.Location</div>
+                                    <small class="text-muted">
+                                        Required skills: @shift.RequiredSkills
+                                    </small>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        }
+    </section>
+
+    @if (PastShifts.Count > 0)
+    {
+        <section class="mt-4" aria-labelledby="past-shifts-heading">
+            <h2 id="past-shifts-heading" class="h4">Previous shifts</h2>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Opportunity</th>
+                            <th>Date</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (VolunteerScheduledShift shift in PastShifts)
+                        {
+                            <tr>
+                                <td>@shift.Title</td>
+                                <td>@FormatDateTime(shift.StartsAt)</td>
+                                <td>@shift.Location</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private User? CurrentUser { get; set; }
+
+    private List<VolunteerScheduledShift> UpcomingShifts { get; set; } = new();
+
+    private List<VolunteerScheduledShift> PastShifts { get; set; } = new();
+
+    private List<VolunteerShiftNotification> Notifications { get; set; } = new();
+
+    private List<VolunteerShiftNotification> UnreadNotifications { get; set; } = new();
+
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        NotificationService.NotificationsChanged += OnNotificationsChanged;
+
+        try
+        {
+            AuthenticationState authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+            CurrentUser =
+                await DomainUserService.GetCurrentUserAsync(
+                    authenticationState.User);
+
+            if (CurrentUser.Role != Role.Volunteer)
+            {
+                throw new UnauthorizedAccessException(
+                    "Only volunteers can view a volunteer schedule.");
+            }
+
+            RefreshSchedule();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+    }
+
+    // Reloads both the schedule and notifications after an assignment change.
+    private void RefreshSchedule()
+    {
+        if (CurrentUser is null)
+        {
+            return;
+        }
+
+        DateTime now = Clock.GetLocalNow().DateTime;
+        IReadOnlyList<VolunteerScheduledShift> schedule =
+            ScheduleService.GetSchedule(CurrentUser.Id);
+
+        UpcomingShifts = schedule
+            .Where(shift => LocalTime(shift.EndsAt) >= now)
+            .ToList();
+        PastShifts = schedule
+            .Where(shift => LocalTime(shift.EndsAt) < now)
+            .OrderByDescending(shift => shift.StartsAt)
+            .ToList();
+
+        Notifications = NotificationService
+            .GetNotificationsForVolunteer(CurrentUser.Id)
+            .ToList();
+        UnreadNotifications = Notifications
+            .Where(notification => !notification.IsRead)
+            .ToList();
+    }
+
+    private void MarkNotificationsAsRead()
+    {
+        if (CurrentUser is null)
+        {
+            return;
+        }
+
+        NotificationService.MarkAllAsRead(CurrentUser.Id);
+        RefreshSchedule();
+    }
+
+    // Assignment notifications can arrive while the volunteer already has
+    // this page open, so refresh the component through its Blazor dispatcher.
+    private void OnNotificationsChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            RefreshSchedule();
+            StateHasChanged();
+        });
+    }
+
+    private static string NotificationHeading(
+        VolunteerShiftNotification notification) =>
+        notification.Type == ShiftNotificationType.Assigned
+            ? "New shift assigned"
+            : "Shift cancelled";
+
+    private static DateTime LocalTime(DateTime value) =>
+        value.Kind == DateTimeKind.Unspecified
+            ? value
+            : value.ToLocalTime();
+
+    private static string FormatDateTime(DateTime value) =>
+        LocalTime(value).ToString("dd MMM yyyy, h:mm tt");
+
+    private static string FormatTimeRange(VolunteerScheduledShift shift) =>
+        $"{LocalTime(shift.StartsAt):h:mm tt}–{LocalTime(shift.EndsAt):h:mm tt}";
+
+    public void Dispose()
+    {
+        NotificationService.NotificationsChanged -= OnNotificationsChanged;
+    }
+}
