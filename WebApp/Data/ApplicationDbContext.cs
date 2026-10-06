@@ -13,6 +13,12 @@ namespace WebApp.Data
         // Skills and interests volunteers list on their profile.
         public DbSet<VolunteerProfileTag> VolunteerProfileTags => Set<VolunteerProfileTag>();
 
+        // Assigned shifts and their notifications are persisted for Feature 5.
+        public DbSet<VolunteerShiftRecord> VolunteerShifts => Set<VolunteerShiftRecord>();
+
+        public DbSet<VolunteerShiftNotificationRecord> VolunteerShiftNotifications =>
+            Set<VolunteerShiftNotificationRecord>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             // Identity's own tables must be configured first.
@@ -52,6 +58,44 @@ namespace WebApp.Data
                 tag.HasOne<ApplicationUser>()
                     .WithMany()
                     .HasForeignKey(item => item.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<VolunteerShiftRecord>(shift =>
+            {
+                shift.HasKey(item => item.Id);
+                shift.Property(item => item.VolunteerId).IsRequired();
+                shift.Property(item => item.Title).IsRequired().HasMaxLength(200);
+                shift.Property(item => item.Location).IsRequired().HasMaxLength(300);
+                shift.Property(item => item.RequiredSkills).IsRequired().HasMaxLength(500);
+                shift.Property(item => item.StartsAt).HasColumnType("timestamp without time zone");
+                shift.Property(item => item.EndsAt).HasColumnType("timestamp without time zone");
+                shift.Property(item => item.AssignedAt).HasColumnType("timestamp with time zone");
+                shift.Property(item => item.CancelledAt).HasColumnType("timestamp with time zone");
+                shift.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+                shift.HasIndex(item => new { item.VolunteerId, item.Status, item.StartsAt });
+                shift.HasIndex(item => new { item.OpportunityId, item.Status });
+
+                // Deleting an Identity account also removes its saved schedule.
+                shift.HasOne<ApplicationUser>()
+                    .WithMany()
+                    .HasForeignKey(item => item.VolunteerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<VolunteerShiftNotificationRecord>(notification =>
+            {
+                notification.HasKey(item => item.Id);
+                notification.Property(item => item.VolunteerId).IsRequired();
+                notification.Property(item => item.OpportunityTitle).IsRequired().HasMaxLength(200);
+                notification.Property(item => item.ShiftStartsAt).HasColumnType("timestamp without time zone");
+                notification.Property(item => item.CreatedAt).HasColumnType("timestamp with time zone");
+                notification.Property(item => item.Type).HasConversion<string>().HasMaxLength(20);
+                notification.HasIndex(item => new { item.VolunteerId, item.IsRead, item.CreatedAt });
+
+                notification.HasOne(item => item.Shift)
+                    .WithMany()
+                    .HasForeignKey(item => item.ShiftId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

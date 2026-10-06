@@ -5,6 +5,7 @@
 @using Volunteer_Management_System
 @using WebApp.Data
 @using WebApp.Services
+@using WebApp.Services.Scheduling
 
 @attribute [Authorize(Roles = "Coordinator,OrganisationAdministrator")]
 
@@ -14,6 +15,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DomainUserService DomainUserService
 @inject AvailabilitySyncService AvailabilitySyncService
+@inject VolunteerSchedulePersistenceService SchedulePersistenceService
 @inject UserManager<ApplicationUser> UserManager
 
 @*
@@ -273,9 +275,32 @@ else
                 .SyncVolunteerAvailabilityAsync(
                     application.VolunteerId);
 
-            AssignmentService.ApproveAndAssign(
+            VolunteerOpportunity opportunity =
+                OpportunityService.FindOpportunityById(
+                    application.OpportunityId)
+                ?? throw new KeyNotFoundException(
+                    "Volunteer opportunity was not found.");
+
+            // The domain service checks assignments from the current process.
+            // Persisted shifts are checked as well so a restart cannot allow an
+            // overlapping assignment for the same volunteer.
+            if (await SchedulePersistenceService.HasConflictAsync(
+                application.VolunteerId.ToString(),
+                opportunity.StartDateTime,
+                opportunity.EndDateTime))
+            {
+                throw new InvalidOperationException(
+                    "Volunteer already has an overlapping assignment.");
+            }
+
+            VolunteerAssignment assignment =
+                AssignmentService.ApproveAndAssign(
                 CurrentUser,
                 application.Id);
+
+            await SchedulePersistenceService.RecordAssignmentAsync(
+                assignment,
+                opportunity);
 
             SetSuccessMessage(
                 "Application approved and volunteer assigned successfully.");
@@ -316,7 +341,7 @@ else
     }
 
     // Cancels an active volunteer assignment.
-    private void CancelAssignment(
+    private async Task CancelAssignment(
         Guid assignmentId)
     {
         try
@@ -327,12 +352,28 @@ else
                     "A reviewer account could not be found.");
             }
 
+            VolunteerAssignment assignment =
+                AssignmentService.FindAssignmentById(assignmentId)
+                ?? throw new KeyNotFoundException(
+                    "Volunteer assignment was not found.");
+            VolunteerOpportunity opportunity =
+                OpportunityService.FindOpportunityById(
+                    assignment.OpportunityId)
+                ?? throw new KeyNotFoundException(
+                    "Volunteer opportunity was not found.");
+
             AssignmentService.CancelAssignment(
                 CurrentUser,
                 assignmentId);
 
+            await SchedulePersistenceService.RecordCancellationAsync(
+                assignment,
+                opportunity);
+
             SetSuccessMessage(
                 "Volunteer assignment cancelled successfully.");
+
+            await RefreshPageDataAsync();
         }
         catch (Exception exception)
         {

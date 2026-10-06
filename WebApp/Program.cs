@@ -8,6 +8,7 @@ using WebApp.Data;
 using WebApp.Services;
 using WebApp.Services.Identity;
 using WebApp.Services.Profile;
+using WebApp.Services.Scheduling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +28,9 @@ builder.Services.AddAuthentication(options =>
     .AddIdentityCookies();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+// The factory gives singleton scheduling services a fresh database context for
+// each operation while still registering ApplicationDbContext for scoped pages.
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -65,20 +68,15 @@ builder.Services.AddSingleton<VolunteerApplicationService>();
 // Stores the domain availability used during volunteer assignment checks.
 builder.Services.AddSingleton<VolunteerAvailabilityService>();
 
-// Added for Feature 5 WebApp integration:
-// Stores in-app assignment notifications for volunteers. This follows the
-// current in-memory lifetime used by opportunities and assignments.
-builder.Services.AddSingleton<VolunteerShiftNotificationService>();
-
 // Added for Feature 4 WebApp integration:
 // Handles application review, assignment, capacity, availability and
-// scheduling conflict checks. The Feature 5 notification dependency causes
-// assignment and cancellation notifications to be created automatically.
+// scheduling conflict checks.
 builder.Services.AddSingleton<VolunteerAssignmentService>();
 
 // Added for Feature 5 WebApp integration:
-// Builds each volunteer's schedule from active assignments and opportunities.
-builder.Services.AddSingleton<VolunteerScheduleService>();
+// Persists assigned shifts and notifications in the Supabase database so
+// volunteer schedules survive application restarts.
+builder.Services.AddSingleton<VolunteerSchedulePersistenceService>();
 
 // Added for Features 3 and 4 WebApp integration:
 // Converts the logged-in ASP.NET Identity account into the domain User model.

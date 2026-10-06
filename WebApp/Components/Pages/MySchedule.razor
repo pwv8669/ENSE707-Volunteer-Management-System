@@ -6,19 +6,19 @@
 @using Volunteer_Management_System
 @using WebApp.Data
 @using WebApp.Services
+@using WebApp.Services.Scheduling
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DomainUserService DomainUserService
-@inject VolunteerScheduleService ScheduleService
-@inject VolunteerShiftNotificationService NotificationService
+@inject VolunteerSchedulePersistenceService ScheduleService
 @inject TimeProvider Clock
 
 @*
     Volunteer Scheduling and Calendar (Feature 5):
-    - Displays the signed-in volunteer's assigned shifts in date order.
-    - Shows in-app notifications when shifts are assigned or cancelled.
-    - Scheduling conflicts are prevented by VolunteerAssignmentService before
-      an assignment reaches this page.
+    - Displays the signed-in volunteer's persisted shifts in date order.
+    - Shows persisted notifications when shifts are assigned or cancelled.
+    - Scheduling conflicts are checked against both the current assignment
+      service and shifts saved in Supabase.
 *@
 <PageTitle>My Schedule</PageTitle>
 
@@ -48,7 +48,7 @@ else
             @if (UnreadNotifications.Count > 0)
             {
                 <button class="btn btn-sm btn-outline-secondary"
-                        @onclick="MarkNotificationsAsRead">
+                        @onclick="MarkNotificationsAsReadAsync">
                     Mark all as read
                 </button>
             }
@@ -63,7 +63,7 @@ else
         else
         {
             <div class="list-group">
-                @foreach (VolunteerShiftNotification notification
+                @foreach (VolunteerShiftNotificationModel notification
                     in Notifications.Take(5))
                 {
                     <div class="list-group-item @(notification.IsRead ? string.Empty : "list-group-item-primary")">
@@ -96,7 +96,7 @@ else
         }
         else
         {
-            @foreach (IGrouping<DateTime, VolunteerScheduledShift> day
+            @foreach (IGrouping<DateTime, VolunteerScheduledShiftModel> day
                 in UpcomingShifts.GroupBy(shift => LocalTime(shift.StartsAt).Date))
             {
                 <h3 class="h5 mt-4">
@@ -104,7 +104,7 @@ else
                 </h3>
 
                 <div class="list-group mb-3">
-                    @foreach (VolunteerScheduledShift shift in day)
+                    @foreach (VolunteerScheduledShiftModel shift in day)
                     {
                         <article class="list-group-item">
                             <div class="row align-items-start">
@@ -140,7 +140,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (VolunteerScheduledShift shift in PastShifts)
+                        @foreach (VolunteerScheduledShiftModel shift in PastShifts)
                         {
                             <tr>
                                 <td>@shift.Title</td>
@@ -158,25 +158,26 @@ else
 @code {
     private User? CurrentUser { get; set; }
 
-    private List<VolunteerScheduledShift> UpcomingShifts { get; set; } = new();
+    private string? VolunteerId { get; set; }
 
-    private List<VolunteerScheduledShift> PastShifts { get; set; } = new();
+    private List<VolunteerScheduledShiftModel> UpcomingShifts { get; set; } = new();
 
-    private List<VolunteerShiftNotification> Notifications { get; set; } = new();
+    private List<VolunteerScheduledShiftModel> PastShifts { get; set; } = new();
 
-    private List<VolunteerShiftNotification> UnreadNotifications { get; set; } = new();
+    private List<VolunteerShiftNotificationModel> Notifications { get; set; } = new();
+
+    private List<VolunteerShiftNotificationModel> UnreadNotifications { get; set; } = new();
 
     private string? ErrorMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        NotificationService.NotificationsChanged += OnNotificationsChanged;
+        ScheduleService.ScheduleChanged += OnScheduleChanged;
 
         try
         {
             AuthenticationState authenticationState =
                 await AuthenticationStateProvider.GetAuthenticationStateAsync();
-
             CurrentUser =
                 await DomainUserService.GetCurrentUserAsync(
                     authenticationState.User);
@@ -187,7 +188,8 @@ else
                     "Only volunteers can view a volunteer schedule.");
             }
 
-            RefreshSchedule();
+            VolunteerId = CurrentUser.Id.ToString();
+            await RefreshScheduleAsync();
         }
         catch (Exception exception)
         {
@@ -195,17 +197,17 @@ else
         }
     }
 
-    // Reloads both the schedule and notifications after an assignment change.
-    private void RefreshSchedule()
+    // Reloads the persisted schedule and notifications after a shift change.
+    private async Task RefreshScheduleAsync()
     {
-        if (CurrentUser is null)
+        if (VolunteerId is null)
         {
             return;
         }
 
         DateTime now = Clock.GetLocalNow().DateTime;
-        IReadOnlyList<VolunteerScheduledShift> schedule =
-            ScheduleService.GetSchedule(CurrentUser.Id);
+        IReadOnlyList<VolunteerScheduledShiftModel> schedule =
+            await ScheduleService.GetScheduleAsync(VolunteerId);
 
         UpcomingShifts = schedule
             .Where(shift => LocalTime(shift.EndsAt) >= now)
@@ -215,39 +217,47 @@ else
             .OrderByDescending(shift => shift.StartsAt)
             .ToList();
 
-        Notifications = NotificationService
-            .GetNotificationsForVolunteer(CurrentUser.Id)
+        Notifications = (await ScheduleService
+            .GetNotificationsAsync(VolunteerId))
             .ToList();
         UnreadNotifications = Notifications
             .Where(notification => !notification.IsRead)
             .ToList();
     }
 
-    private void MarkNotificationsAsRead()
+    private async Task MarkNotificationsAsReadAsync()
     {
-        if (CurrentUser is null)
+        if (VolunteerId is null)
         {
             return;
         }
 
-        NotificationService.MarkAllAsRead(CurrentUser.Id);
-        RefreshSchedule();
+        await ScheduleService.MarkAllNotificationsAsReadAsync(VolunteerId);
+        await RefreshScheduleAsync();
     }
 
-    // Assignment notifications can arrive while the volunteer already has
-    // this page open, so refresh the component through its Blazor dispatcher.
-    private void OnNotificationsChanged()
+    // Persisted updates can originate from a coordinator's Blazor circuit.
+    // Only the affected volunteer's schedule is refreshed.
+    private void OnScheduleChanged(string volunteerId)
     {
-        _ = InvokeAsync(() =>
+        if (!string.Equals(
+            VolunteerId,
+            volunteerId,
+            StringComparison.OrdinalIgnoreCase))
         {
-            RefreshSchedule();
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await RefreshScheduleAsync();
             StateHasChanged();
         });
     }
 
     private static string NotificationHeading(
-        VolunteerShiftNotification notification) =>
-        notification.Type == ShiftNotificationType.Assigned
+        VolunteerShiftNotificationModel notification) =>
+        notification.Type == VolunteerShiftNotificationType.Assigned
             ? "New shift assigned"
             : "Shift cancelled";
 
@@ -259,11 +269,11 @@ else
     private static string FormatDateTime(DateTime value) =>
         LocalTime(value).ToString("dd MMM yyyy, h:mm tt");
 
-    private static string FormatTimeRange(VolunteerScheduledShift shift) =>
+    private static string FormatTimeRange(VolunteerScheduledShiftModel shift) =>
         $"{LocalTime(shift.StartsAt):h:mm tt}–{LocalTime(shift.EndsAt):h:mm tt}";
 
     public void Dispose()
     {
-        NotificationService.NotificationsChanged -= OnNotificationsChanged;
+        ScheduleService.ScheduleChanged -= OnScheduleChanged;
     }
 }

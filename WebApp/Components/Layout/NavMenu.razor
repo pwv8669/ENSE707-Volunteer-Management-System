@@ -1,10 +1,11 @@
 ﻿@implements IDisposable
 
 @using System.Security.Claims
-@using Volunteer_Management_System
 @using WebApp.Data
+@using WebApp.Services.Scheduling
 @inject NavigationManager NavigationManager
-@inject VolunteerShiftNotificationService NotificationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject VolunteerSchedulePersistenceService ScheduleService
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -41,11 +42,6 @@
                 @* Added for Feature 3:
                    Volunteers can view their submitted applications. *@
                 <AuthorizeView Roles="Volunteer" Context="volunteerRoleContext">
-                    @{
-                        int unreadShiftNotifications =
-                            GetUnreadShiftNotificationCount(
-                                volunteerRoleContext.User);
-                    }
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="my-applications">
                             <span class="bi bi-file-earmark-text-nav-menu" aria-hidden="true"></span> My Applications
@@ -57,10 +53,10 @@
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="my-schedule">
                             <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> My Schedule
-                            @if (unreadShiftNotifications > 0)
+                            @if (unreadShiftNotificationCount > 0)
                             {
                                 <span class="badge rounded-pill bg-danger ms-1">
-                                    @unreadShiftNotifications
+                                    @unreadShiftNotificationCount
                                 </span>
                             }
                         </NavLink>
@@ -127,44 +123,67 @@
 
 @code {
     private string? currentUrl;
+    private string? currentVolunteerId;
+    private int unreadShiftNotificationCount;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
-        NotificationService.NotificationsChanged += OnNotificationsChanged;
+        ScheduleService.ScheduleChanged += OnScheduleChanged;
+
+        AuthenticationState state =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (state.User.IsInRole(AppRoles.Volunteer))
+        {
+            currentVolunteerId =
+                state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            await RefreshUnreadCountAsync();
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
-        StateHasChanged();
+        _ = InvokeAsync(async () =>
+        {
+            await RefreshUnreadCountAsync();
+            StateHasChanged();
+        });
     }
 
-    // Resolves the Identity Guid from the current claims before reading the
-    // volunteer's notification count.
-    private int GetUnreadShiftNotificationCount(ClaimsPrincipal principal)
+    private async Task RefreshUnreadCountAsync()
     {
-        string? userId =
-            principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        return Guid.TryParse(userId, out Guid volunteerId)
-            ? NotificationService
-                .GetUnreadNotificationsForVolunteer(volunteerId)
-                .Count
-            : 0;
+        unreadShiftNotificationCount =
+            currentVolunteerId is null
+                ? 0
+                : await ScheduleService
+                    .GetUnreadNotificationCountAsync(
+                        currentVolunteerId);
     }
 
-    // Notifications can be raised by a coordinator's Blazor circuit, so the
-    // navigation menu refresh is dispatched back to this component's circuit.
-    private void OnNotificationsChanged()
+    // Persisted schedule changes can originate from a coordinator's Blazor
+    // circuit, so only the affected volunteer's badge is refreshed here.
+    private void OnScheduleChanged(string volunteerId)
     {
-        _ = InvokeAsync(StateHasChanged);
+        if (!string.Equals(
+            currentVolunteerId,
+            volunteerId,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await RefreshUnreadCountAsync();
+            StateHasChanged();
+        });
     }
 
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
-        NotificationService.NotificationsChanged -= OnNotificationsChanged;
+        ScheduleService.ScheduleChanged -= OnScheduleChanged;
     }
 }
