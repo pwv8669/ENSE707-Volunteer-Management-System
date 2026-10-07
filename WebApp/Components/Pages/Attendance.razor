@@ -1,0 +1,270 @@
+@page "/attendance"
+@attribute [Authorize(Roles = "Coordinator,OrganisationAdministrator")]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using WebApp.Data
+@using WebApp.Services.Attendance
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject VolunteerAttendanceService AttendanceService
+
+@*
+    Attendance and Volunteer Hours Tracking (Feature 6):
+    - Lists assignments saved by Feature 5, including after an app restart.
+    - Lets coordinators and administrators record attendance and hours.
+    - Reuses the same attendance row when a correction is saved.
+*@
+<PageTitle>Attendance and Hours</PageTitle>
+
+<h1>Attendance and Hours</h1>
+<p class="text-muted">
+    Record whether assigned volunteers attended and how many hours they completed.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(StatusMessage))
+{
+    <div class="alert @StatusClass" role="alert">
+        @StatusMessage
+    </div>
+}
+
+@if (IsLoading)
+{
+    <p role="status">Loading assigned shifts...</p>
+}
+else if (Shifts.Count == 0)
+{
+    <div class="alert alert-info">
+        There are no persisted volunteer shifts available for attendance.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Event and volunteer</th>
+                    <th>Shift</th>
+                    <th>Attendance</th>
+                    <th>Completed hours</th>
+                    <th>Notes</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (AttendanceShiftModel shift in Shifts)
+                {
+                    AttendanceInput input = Inputs[shift.ShiftId];
+
+                    <tr>
+                        <td>
+                            <strong>@shift.Title</strong>
+                            <div class="small text-muted">
+                                @VolunteerName(shift.VolunteerId)
+                            </div>
+                            <div class="small text-muted">@shift.Location</div>
+                        </td>
+                        <td>
+                            @FormatRange(shift.StartsAt, shift.EndsAt)
+                            @if (shift.StartsAt > DateTime.Now)
+                            {
+                                <span class="badge text-bg-info ms-1">Upcoming</span>
+                            }
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm"
+                                    aria-label="Attendance status"
+                                    @bind="input.Status">
+                                <option value="">Select...</option>
+                                @foreach (VolunteerAttendanceStatus status
+                                    in Enum.GetValues<VolunteerAttendanceStatus>())
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </td>
+                        <td style="min-width: 9rem;">
+                            <input class="form-control form-control-sm"
+                                   type="number"
+                                   min="0"
+                                   max="@ScheduledHours(shift)"
+                                   step="0.25"
+                                   aria-label="Completed hours"
+                                   disabled="@(input.Status == VolunteerAttendanceStatus.Absent)"
+                                   @bind="input.HoursCompleted" />
+                            <div class="form-text">
+                                Maximum @ScheduledHours(shift).ToString("0.##") hours
+                            </div>
+                        </td>
+                        <td style="min-width: 13rem;">
+                            <input class="form-control form-control-sm"
+                                   maxlength="@VolunteerAttendanceService.MaxNotesLength"
+                                   placeholder="Optional note"
+                                   aria-label="Attendance notes"
+                                   @bind="input.Notes" />
+                        </td>
+                        <td>
+                            <button type="button"
+                                    class="btn btn-sm btn-primary"
+                                    disabled="@SavingShiftIds.Contains(shift.ShiftId)"
+                                    @onclick="() => SaveAsync(shift)">
+                                @(shift.AttendanceStatus is null ? "Record" : "Update")
+                            </button>
+
+                            @if (shift.RecordedAt is DateTime recordedAt)
+                            {
+                                <div class="small text-muted mt-1">
+                                    Saved @recordedAt.ToLocalTime().ToString("dd MMM yyyy, h:mm tt")
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private string? CurrentUserId { get; set; }
+
+    private List<AttendanceShiftModel> Shifts { get; set; } = new();
+
+    private Dictionary<Guid, AttendanceInput> Inputs { get; } = new();
+
+    private Dictionary<string, string> VolunteerNames { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private HashSet<Guid> SavingShiftIds { get; } = new();
+
+    private bool IsLoading { get; set; } = true;
+
+    private string? StatusMessage { get; set; }
+
+    private string StatusClass { get; set; } = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationState state =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        CurrentUserId = UserManager.GetUserId(state.User);
+
+        if (CurrentUserId is null)
+        {
+            StatusMessage = "The signed-in account could not be found.";
+            StatusClass = "alert-danger";
+            IsLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    // Reloads persisted shifts and builds editable input values from their
+    // current attendance records.
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+
+        try
+        {
+            Shifts = (await AttendanceService
+                .GetShiftsForAttendanceAsync())
+                .ToList();
+
+            Inputs.Clear();
+            foreach (AttendanceShiftModel shift in Shifts)
+            {
+                Inputs[shift.ShiftId] = new AttendanceInput
+                {
+                    Status = shift.AttendanceStatus,
+                    HoursCompleted = shift.HoursCompleted,
+                    Notes = shift.Notes
+                };
+
+                if (!VolunteerNames.ContainsKey(shift.VolunteerId))
+                {
+                    ApplicationUser? volunteer =
+                        await UserManager.FindByIdAsync(shift.VolunteerId);
+                    VolunteerNames[shift.VolunteerId] =
+                        volunteer?.UserName
+                        ?? volunteer?.Email
+                        ?? shift.VolunteerId;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = exception.Message;
+            StatusClass = "alert-danger";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task SaveAsync(AttendanceShiftModel shift)
+    {
+        AttendanceInput input = Inputs[shift.ShiftId];
+        if (input.Status is null)
+        {
+            StatusMessage = "Select Attended or Absent before saving.";
+            StatusClass = "alert-danger";
+            return;
+        }
+
+        SavingShiftIds.Add(shift.ShiftId);
+        try
+        {
+            decimal hours =
+                input.Status == VolunteerAttendanceStatus.Absent
+                    ? 0
+                    : input.HoursCompleted;
+
+            await AttendanceService.RecordAttendanceAsync(
+                shift.ShiftId,
+                CurrentUserId!,
+                input.Status.Value,
+                hours,
+                input.Notes);
+
+            StatusMessage =
+                $"Attendance saved for {VolunteerName(shift.VolunteerId)}.";
+            StatusClass = "alert-success";
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = exception.Message;
+            StatusClass = "alert-danger";
+        }
+        finally
+        {
+            SavingShiftIds.Remove(shift.ShiftId);
+        }
+    }
+
+    private string VolunteerName(string volunteerId) =>
+        VolunteerNames.TryGetValue(volunteerId, out string? name)
+            ? name
+            : volunteerId;
+
+    private static decimal ScheduledHours(AttendanceShiftModel shift) =>
+        (decimal)(shift.EndsAt - shift.StartsAt).TotalHours;
+
+    private static string FormatRange(DateTime startsAt, DateTime endsAt) =>
+        $"{startsAt:dd MMM yyyy, h:mm tt}–{endsAt:h:mm tt}";
+
+    private sealed class AttendanceInput
+    {
+        public VolunteerAttendanceStatus? Status { get; set; }
+
+        public decimal HoursCompleted { get; set; }
+
+        public string Notes { get; set; } = string.Empty;
+    }
+}

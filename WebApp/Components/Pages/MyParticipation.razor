@@ -1,0 +1,191 @@
+@page "/my-participation"
+@attribute [Authorize(Roles = AppRoles.Volunteer)]
+@implements IDisposable
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using WebApp.Data
+@using WebApp.Services.Attendance
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject VolunteerAttendanceService AttendanceService
+
+@*
+    Feature 6 volunteer view. Attendance and completed hours come from
+    Supabase, so this participation history remains available after restart.
+*@
+<PageTitle>My Participation</PageTitle>
+
+<h1>My Participation</h1>
+<p class="text-muted">
+    View your recorded attendance and completed volunteer hours.
+</p>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@ErrorMessage</div>
+}
+else if (IsLoading)
+{
+    <p role="status">Loading your participation history...</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted">Recorded shifts</div>
+                <div class="fs-3 fw-semibold">@Summary.RecordedShifts</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted">Attended</div>
+                <div class="fs-3 fw-semibold">@Summary.AttendedShifts</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted">Absent</div>
+                <div class="fs-3 fw-semibold">@Summary.AbsentShifts</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card h-100"><div class="card-body">
+                <div class="text-muted">Completed hours</div>
+                <div class="fs-3 fw-semibold">@Summary.TotalHours.ToString("0.##")</div>
+            </div></div>
+        </div>
+    </div>
+
+    @if (History.Count == 0)
+    {
+        <div class="alert alert-info">
+            No attendance has been recorded for your shifts yet.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Date</th>
+                        <th>Attendance</th>
+                        <th>Completed hours</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (VolunteerParticipationEntryModel entry in History)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@entry.Title</strong>
+                                <div class="small text-muted">@entry.Location</div>
+                            </td>
+                            <td>@FormatRange(entry.StartsAt, entry.EndsAt)</td>
+                            <td>
+                                <span class="badge @StatusClass(entry.Status)">
+                                    @entry.Status
+                                </span>
+                            </td>
+                            <td>@entry.HoursCompleted.ToString("0.##")</td>
+                            <td>@NotesOrDash(entry.Notes)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private string? VolunteerId { get; set; }
+
+    private List<VolunteerParticipationEntryModel> History { get; set; } = new();
+
+    private VolunteerParticipationSummaryModel Summary { get; set; } =
+        new(0, 0, 0, 0);
+
+    private bool IsLoading { get; set; } = true;
+
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        AttendanceService.AttendanceChanged += OnAttendanceChanged;
+
+        try
+        {
+            AuthenticationState state =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            VolunteerId = state.User
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (VolunteerId is null)
+            {
+                throw new UnauthorizedAccessException(
+                    "The signed-in volunteer account could not be found.");
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.Message;
+            IsLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (VolunteerId is null)
+        {
+            return;
+        }
+
+        IsLoading = true;
+        History = (await AttendanceService
+            .GetVolunteerParticipationAsync(VolunteerId))
+            .ToList();
+        Summary = await AttendanceService
+            .GetVolunteerSummaryAsync(VolunteerId);
+        IsLoading = false;
+    }
+
+    // Attendance may be recorded from another signed-in user's Blazor circuit.
+    private void OnAttendanceChanged(string volunteerId)
+    {
+        if (!string.Equals(
+            VolunteerId,
+            volunteerId,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private static string StatusClass(VolunteerAttendanceStatus status) =>
+        status == VolunteerAttendanceStatus.Attended
+            ? "text-bg-success"
+            : "text-bg-secondary";
+
+    private static string FormatRange(DateTime startsAt, DateTime endsAt) =>
+        $"{startsAt:dd MMM yyyy, h:mm tt}–{endsAt:h:mm tt}";
+
+    private static string NotesOrDash(string notes) =>
+        string.IsNullOrWhiteSpace(notes) ? "—" : notes;
+
+    public void Dispose()
+    {
+        AttendanceService.AttendanceChanged -= OnAttendanceChanged;
+    }
+}

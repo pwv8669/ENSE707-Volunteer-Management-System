@@ -61,6 +61,14 @@
                             }
                         </NavLink>
                     </div>
+
+                    @* Added for Feature 6:
+                       Volunteers can review recorded attendance and hours. *@
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="my-participation">
+                            <span class="bi bi-clock-history-nav-menu" aria-hidden="true"></span> My Participation
+                        </NavLink>
+                    </div>
                 </AuthorizeView>
 
                 @* Added for Feature 4:
@@ -70,6 +78,14 @@
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="assignments">
                             <span class="bi bi-people-nav-menu" aria-hidden="true"></span> Volunteer Assignments
+                        </NavLink>
+                    </div>
+
+                    @* Added for Feature 6:
+                       Managers record attendance and completed hours. *@
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="attendance">
+                            <span class="bi bi-check2-square-nav-menu" aria-hidden="true"></span> Attendance &amp; Hours
                         </NavLink>
                     </div>
                 </AuthorizeView>

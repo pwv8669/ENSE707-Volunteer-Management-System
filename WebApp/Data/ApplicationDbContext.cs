@@ -19,6 +19,10 @@ namespace WebApp.Data
         public DbSet<VolunteerShiftNotificationRecord> VolunteerShiftNotifications =>
             Set<VolunteerShiftNotificationRecord>();
 
+        // Attendance outcomes and completed hours are persisted for Feature 6.
+        public DbSet<VolunteerAttendanceRecord> VolunteerAttendanceRecords =>
+            Set<VolunteerAttendanceRecord>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             // Identity's own tables must be configured first.
@@ -96,6 +100,32 @@ namespace WebApp.Data
                 notification.HasOne(item => item.Shift)
                     .WithMany()
                     .HasForeignKey(item => item.ShiftId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<VolunteerAttendanceRecord>(attendance =>
+            {
+                // A shift can have one attendance outcome. Saving it again
+                // updates the existing record instead of creating a duplicate.
+                attendance.HasKey(item => item.ShiftId);
+                attendance.Property(item => item.VolunteerId).IsRequired();
+                attendance.Property(item => item.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(20);
+                attendance.Property(item => item.HoursCompleted)
+                    .HasPrecision(8, 2);
+                attendance.Property(item => item.Notes)
+                    .IsRequired()
+                    .HasMaxLength(500);
+                attendance.Property(item => item.RecordedByUserId).IsRequired();
+                attendance.Property(item => item.RecordedAt)
+                    .HasColumnType("timestamp with time zone");
+                attendance.HasIndex(item =>
+                    new { item.VolunteerId, item.Status, item.RecordedAt });
+
+                attendance.HasOne(item => item.Shift)
+                    .WithOne()
+                    .HasForeignKey<VolunteerAttendanceRecord>(item => item.ShiftId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

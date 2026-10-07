@@ -6,6 +6,7 @@ using WebApp.Components;
 using WebApp.Components.Account;
 using WebApp.Data;
 using WebApp.Services;
+using WebApp.Services.Attendance;
 using WebApp.Services.Identity;
 using WebApp.Services.Profile;
 using WebApp.Services.Scheduling;
@@ -77,6 +78,11 @@ builder.Services.AddSingleton<VolunteerAssignmentService>();
 // Persists assigned shifts and notifications in the Supabase database so
 // volunteer schedules survive application restarts.
 builder.Services.AddSingleton<VolunteerSchedulePersistenceService>();
+
+// Added for Feature 6 WebApp integration:
+// Records attendance and completed hours against the persisted Feature 5
+// shifts, then provides each volunteer's participation history.
+builder.Services.AddSingleton<VolunteerAttendanceService>();
 
 // Added for Features 3 and 4 WebApp integration:
 // Converts the logged-in ASP.NET Identity account into the domain User model.
