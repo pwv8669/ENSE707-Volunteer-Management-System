@@ -18,7 +18,9 @@ namespace WebApp.Components.Account
 
         public void RedirectTo(string? uri)
         {
-            uri ??= "";
+            // Account pages without a return URL continue in the main
+            // opportunity workflow instead of the unused starter Home page.
+            uri ??= "opportunities";
 
             // Prevent open redirects.
             if (!Uri.IsWellFormedUriString(uri, UriKind.Relative)
