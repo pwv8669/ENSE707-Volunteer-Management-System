@@ -6,6 +6,7 @@ using WebApp.Components;
 using WebApp.Components.Account;
 using WebApp.Data;
 using WebApp.Services;
+using WebApp.Services.Activity;
 using WebApp.Services.Attendance;
 using WebApp.Services.Identity;
 using WebApp.Services.Profile;
@@ -97,6 +98,10 @@ builder.Services.AddScoped<AvailabilitySyncService>();
 // opportunity services above; profile details and availability are saved in Postgres
 // through ApplicationDbContext. TimeProvider lets tests control "now".
 builder.Services.AddSingleton<VolunteerHistoryService>();
+
+// Reporting and Dashboard and the profile history read "requests" that are rebuilt from the real
+// volunteer applications and the saved attendance (see VolunteerActivitySyncService).
+builder.Services.AddSingleton<VolunteerActivitySyncService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<VolunteerProfileService>();
 

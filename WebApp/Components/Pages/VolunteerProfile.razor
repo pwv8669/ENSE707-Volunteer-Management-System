@@ -6,12 +6,11 @@
 @using Volunteer_Management_System
 @using WebApp.Data
 @using WebApp.Services
+@using WebApp.Services.Activity
 @inject VolunteerProfileService ProfileService
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject VolunteerRequestService RequestService
-@inject VolunteerOpportunityService OpportunityService
-@inject IWebHostEnvironment Environment
+@inject VolunteerActivitySyncService ActivitySync
 @inject TimeProvider Clock
 @inject ILogger<VolunteerProfile> Logger
 
@@ -63,8 +62,7 @@
             </div>
         </div>
 
-        <VolunteerHistoryCard Entries="history" Summary="summary" Now="Now"
-                              OnAddSampleData="@(Environment.IsDevelopment() ? EventCallback.Factory.Create(this, AddSampleHistoryAsync) : default)" />
+        <VolunteerHistoryCard Entries="history" Summary="summary" Now="Now" />
     }
 </div>
 
@@ -125,6 +123,17 @@
             return;
         }
 
+        // The history comes from the volunteer's real applications and recorded attendance. If that data can't be
+        // refreshed (for example the database is briefly unreachable) the rest of the profile still loads.
+        try
+        {
+            await ActivitySync.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to refresh the volunteering history for user {UserId}.", userId);
+        }
+
         history = ProfileService.GetHistory(profile.VolunteerId);
         summary = ProfileService.GetHistorySummary(profile.VolunteerId);
     }
@@ -171,18 +180,6 @@
 
     private Task<ProfileResult> DeleteAvailabilityAsync(Guid slotId) =>
         RunAsync(id => ProfileService.DeleteAvailabilityAsync(id, slotId));
-
-    // Development only: gives this volunteer some demo history (see DevelopmentSampleData).
-    private async Task AddSampleHistoryAsync()
-    {
-        if (profile is null)
-        {
-            return;
-        }
-
-        DevelopmentSampleData.AddSampleHistory(RequestService, OpportunityService, profile.VolunteerId);
-        await RunAsync(_ => Task.FromResult(ProfileResult.Success("Sample history added.")));
-    }
 
     public void Dispose() => gate.Dispose();
 }

@@ -4,15 +4,35 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using WebApp.Data
+@using WebApp.Services.Activity
 @inject ReportingService ReportingService
 @inject VolunteerOpportunityService OpportunityService
-@inject VolunteerRequestService RequestService
+@inject VolunteerActivitySyncService ActivitySync
 @inject UserManager<ApplicationUser> UserManager
+@inject ILogger<Reporting> Logger
 
-@* Reporting and Dashboard page: shows volunteer participation, event statistics, and pending/fulfilled requests, and lets you fulfill or decline pending requests. *@
+@* Reporting and Dashboard page: shows volunteer participation, event statistics, and pending/fulfilled requests.
+   The figures are rebuilt from the real volunteer applications and the saved attendance each time the page opens or is refreshed. *@
 <PageTitle>Reporting and Dashboard</PageTitle>
 
 <h1>Reporting and Dashboard</h1>
+
+<p class="text-muted">
+    A request is a volunteer's application to an event. <strong>Pending</strong> means it is waiting for a coordinator,
+    <strong>Fulfilled</strong> means it was approved and the volunteer assigned, and <strong>Declined</strong> means it was
+    rejected or the assignment was cancelled. Hours come from the attendance recorded by coordinators.
+</p>
+
+<div class="mb-3">
+    <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshDataAsync">Refresh</button>
+    <a class="btn btn-sm btn-outline-primary" href="assignments">Review applications</a>
+</div>
+
+@* Shown when the latest data couldn't be loaded (for example the database is unreachable); the figures below may be out of date. *@
+@if (!string.IsNullOrEmpty(LoadError))
+{
+    <div class="alert alert-warning" role="alert">@LoadError</div>
+}
 
 @* Participation report: one row per volunteer with their request counts and hours. *@
 <h2>Volunteer Participation Report</h2>
@@ -80,19 +100,15 @@
     </tbody>
 </table>
 
-@* Pending requests (with Fulfill/Decline buttons) on the left, fulfilled requests on the right. *@
+@* Pending requests on the left, fulfilled requests on the right. Approving or rejecting is done on the Volunteer Assignments page. *@
 <div class="row">
     <div class="col-md-6">
         <h2>Pending Volunteer Requests</h2>
         <ul class="list-group">
             @foreach (VolunteerRequest request in PendingRequests)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>@VolunteerName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)</span>
-                    <span>
-                        <button class="btn btn-sm btn-success" @onclick="() => Fulfill(request.Id)">Fulfill</button>
-                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Decline(request.Id)">Decline</button>
-                    </span>
+                <li class="list-group-item">
+                    @VolunteerName(request.VolunteerId) &rarr; @OpportunityTitle(request.OpportunityId)
                 </li>
             }
             @if (PendingRequests.Count == 0)
@@ -119,12 +135,6 @@
     </div>
 </div>
 
-@* Confirmation message shown after fulfilling or declining a request. *@
-@if (!string.IsNullOrEmpty(StatusMessage))
-{
-    <div class="alert alert-info mt-3" role="alert">@StatusMessage</div>
-}
-
 @code {
     // Data shown on the page, reloaded by RefreshDataAsync().
     private IReadOnlyList<VolunteerParticipationSummary> ParticipationReport { get; set; } = [];
@@ -133,8 +143,8 @@
     private IReadOnlyList<VolunteerRequest> FulfilledRequests { get; set; } = [];
     // Cache of volunteer id to display name, so each user is only looked up once.
     private readonly Dictionary<Guid, string> _volunteerNames = new();
-    // Message shown after a fulfill/decline action; null hides it.
-    private string? StatusMessage { get; set; }
+    // Message shown when the latest data couldn't be loaded; null hides it.
+    private string? LoadError { get; set; }
 
     // Loads the report data when the page first opens.
     protected override async Task OnInitializedAsync()
@@ -142,9 +152,21 @@
         await RefreshDataAsync();
     }
 
-    // Reloads every report from the services, then looks up names for any new volunteers.
+    // Brings the requests up to date with the real applications and attendance, then reloads every report
+    // and looks up names for any new volunteers. If the database can't be reached, the last known figures stay on screen with a warning.
     private async Task RefreshDataAsync()
     {
+        try
+        {
+            await ActivitySync.RefreshAsync();
+            LoadError = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to refresh the reporting data.");
+            LoadError = "We couldn't load the latest attendance data, so these figures may be out of date.";
+        }
+
         ParticipationReport = ReportingService.GetVolunteerParticipationReport();
         PendingRequests = ReportingService.GetPendingRequests();
         FulfilledRequests = ReportingService.GetFulfilledRequests();
@@ -187,28 +209,6 @@
         return _volunteerNames.TryGetValue(volunteerId, out string? name)
             ? name
             : volunteerId.ToString();
-    }
-
-    // Fulfills a pending request, shows a confirmation, and refreshes the page. The request is fetched first so the message can name the volunteer.
-    private async Task Fulfill(Guid requestId)
-    {
-        VolunteerRequest? request = RequestService.FindRequestById(requestId);
-        RequestService.FulfillRequest(requestId);
-        StatusMessage = request != null
-            ? $"{VolunteerName(request.VolunteerId)}'s request was fulfilled."
-            : "Request was fulfilled.";
-        await RefreshDataAsync();
-    }
-
-    // Declines a pending request, shows a confirmation, and refreshes the page.
-    private async Task Decline(Guid requestId)
-    {
-        VolunteerRequest? request = RequestService.FindRequestById(requestId);
-        RequestService.DeclineRequest(requestId);
-        StatusMessage = request != null
-            ? $"{VolunteerName(request.VolunteerId)}'s request was declined."
-            : "Request was declined.";
-        await RefreshDataAsync();
     }
 
     // Returns an opportunity's title, or "Unknown event" if it can't be found.

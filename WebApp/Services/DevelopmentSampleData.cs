@@ -2,9 +2,10 @@ using Volunteer_Management_System;
 
 namespace WebApp.Services
 {
-    // Demo data for local development only (Program.cs and the profile page only call this in the
-    // Development environment). Opportunities and requests live in memory, so without this a fresh
-    // run would have nothing to show on the history or reporting pages.
+    // Demo data for local development only (Program.cs only calls this in the Development environment).
+    // Opportunities live in memory, so without this a fresh run would have no events to apply for.
+    // Applications, assignments and attendance are not faked here: the history and reporting pages show
+    // whatever really happens when you apply, approve and record attendance.
     public static class DevelopmentSampleData
     {
         // Creates a few sample opportunities, once per app run.
@@ -28,44 +29,6 @@ namespace WebApp.Services
                 "Grey Lynn Community Garden", today.AddDays(9).AddHours(13), 3, "Gardening", 6);
             CreatePublished(opportunities, "Charity Fun Run Marshal", "Guide runners and keep the course safe.",
                 "Auckland Domain", today.AddDays(14).AddHours(7), 5, "Communication", 20);
-        }
-
-        // Gives a volunteer a small, varied history: two fulfilled activities with hours,
-        // one declined and one still pending. Returns false if they already have history.
-        public static bool AddSampleHistory(
-            VolunteerRequestService requests,
-            VolunteerOpportunityService opportunities,
-            Guid volunteerId)
-        {
-            ArgumentNullException.ThrowIfNull(requests);
-            ArgumentNullException.ThrowIfNull(opportunities);
-
-            if (volunteerId == Guid.Empty || requests.GetRequestsForVolunteer(volunteerId).Count > 0)
-            {
-                return false;
-            }
-
-            SeedOpportunities(opportunities);
-            IReadOnlyList<VolunteerOpportunity> events = opportunities.GetAllOpportunities();
-            if (events.Count < 4)
-            {
-                return false;
-            }
-
-            VolunteerRequest beach = requests.SubmitRequest(volunteerId, events[0].Id);
-            requests.FulfillRequest(beach.Id);
-            requests.LogHours(beach.Id, 3);
-
-            VolunteerRequest foodBank = requests.SubmitRequest(volunteerId, events[1].Id);
-            requests.FulfillRequest(foodBank.Id);
-            requests.LogHours(foodBank.Id, 4.5);
-
-            VolunteerRequest garden = requests.SubmitRequest(volunteerId, events[2].Id);
-            requests.DeclineRequest(garden.Id);
-
-            requests.SubmitRequest(volunteerId, events[3].Id);
-
-            return true;
         }
 
         private static void CreatePublished(
