@@ -247,5 +247,104 @@ namespace Volunteer_Management_System.Tests
 
             Assert.AreEqual(0.0, service.FindRequestById(request.Id)!.HoursLogged);
         }
+
+        // Test that replacing all requests removes the old ones and keeps only the new ones.
+        [TestMethod]
+        public void ReplaceAll_WithNewRequests_RemovesTheOldOnes()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest old = service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            VolunteerRequest replacement = VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+
+            service.ReplaceAll([replacement]);
+
+            Assert.HasCount(1, service.GetAllRequests());
+            Assert.IsNull(service.FindRequestById(old.Id));
+            Assert.IsNotNull(service.FindRequestById(replacement.Id));
+        }
+
+        // Test that replacing with an empty list clears every request.
+        [TestMethod]
+        public void ReplaceAll_WithEmptyList_ClearsEveryRequest()
+        {
+            VolunteerRequestService service = new();
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            service.ReplaceAll([]);
+
+            Assert.HasCount(0, service.GetAllRequests());
+        }
+
+        // Test that replacing with no list throws an ArgumentNullException and keeps the existing requests.
+        [TestMethod]
+        public void ReplaceAll_WithNull_ThrowsArgumentNullExceptionAndKeepsRequests()
+        {
+            VolunteerRequestService service = new();
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            Assert.ThrowsExactly<ArgumentNullException>(() => service.ReplaceAll(null!));
+
+            Assert.HasCount(1, service.GetAllRequests());
+        }
+
+        // Test that changing the list that was passed in afterwards does not change what the service stores.
+        [TestMethod]
+        public void ReplaceAll_CopiesTheListItWasGiven()
+        {
+            VolunteerRequestService service = new();
+            List<VolunteerRequest> source = [VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid())];
+
+            service.ReplaceAll(source);
+            source.Clear();
+
+            Assert.HasCount(1, service.GetAllRequests());
+        }
+
+        // Test that a list returned earlier is a snapshot: it does not change when requests are added or replaced afterwards.
+        [TestMethod]
+        public void GetAllRequests_ReturnsASnapshotThatLaterChangesDoNotAffect()
+        {
+            VolunteerRequestService service = new();
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            IReadOnlyList<VolunteerRequest> snapshot = service.GetAllRequests();
+
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            service.ReplaceAll([]);
+
+            Assert.HasCount(1, snapshot);
+        }
+
+        // Test that many requests submitted at the same time are all kept, because the service is shared by every signed-in user.
+        [TestMethod]
+        public void SubmitRequest_FromManyThreadsAtOnce_KeepsEveryRequest()
+        {
+            VolunteerRequestService service = new();
+
+            Parallel.For(0, 500, _ => service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid()));
+
+            Assert.HasCount(500, service.GetAllRequests());
+        }
+
+        // Test that reading while the requests are being replaced never fails or returns a half-built list.
+        [TestMethod]
+        public void ReplaceAll_WhileOtherThreadsRead_NeverFails()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest first = VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            VolunteerRequest second = VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+
+            Parallel.For(0, 400, index =>
+            {
+                if (index % 2 == 0)
+                {
+                    service.ReplaceAll(index % 4 == 0 ? [first] : [first, second]);
+                }
+                else
+                {
+                    int count = service.GetAllRequests().Count;
+                    Assert.IsLessThanOrEqualTo(2, count);
+                }
+            });
+        }
     }
 }

@@ -255,5 +255,156 @@ namespace Volunteer_Management_System.Tests
 
             Assert.AreNotEqual(first.Id, second.Id);
         }
+
+        // Test that restoring a pending request keeps the given id and times and leaves it pending with no hours.
+        [TestMethod]
+        public void Restore_WithPendingState_RebuildsPendingRequest()
+        {
+            Guid id = Guid.NewGuid();
+            Guid volunteerId = Guid.NewGuid();
+            Guid opportunityId = Guid.NewGuid();
+            DateTime requestedAt = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+
+            VolunteerRequest request = VolunteerRequest.Restore(
+                id, volunteerId, opportunityId, VolunteerRequestStatus.Pending, requestedAt, null, 0);
+
+            Assert.AreEqual(id, request.Id);
+            Assert.AreEqual(volunteerId, request.VolunteerId);
+            Assert.AreEqual(opportunityId, request.OpportunityId);
+            Assert.AreEqual(VolunteerRequestStatus.Pending, request.Status);
+            Assert.AreEqual(requestedAt, request.RequestedAt);
+            Assert.IsNull(request.RespondedAt);
+            Assert.AreEqual(0.0, request.HoursLogged);
+        }
+
+        // Test that restoring a fulfilled request keeps its response time and hours.
+        [TestMethod]
+        public void Restore_WithFulfilledState_KeepsRespondedAtAndHours()
+        {
+            DateTime requestedAt = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+            DateTime respondedAt = requestedAt.AddDays(1);
+
+            VolunteerRequest request = VolunteerRequest.Restore(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                VolunteerRequestStatus.Fulfilled, requestedAt, respondedAt, 3.5);
+
+            Assert.AreEqual(VolunteerRequestStatus.Fulfilled, request.Status);
+            Assert.AreEqual(respondedAt, request.RespondedAt);
+            Assert.AreEqual(3.5, request.HoursLogged);
+        }
+
+        // Test that a fulfilled request that has no hours yet can be restored (hours are optional until attendance is recorded).
+        [TestMethod]
+        public void Restore_WithFulfilledStateAndZeroHours_IsAccepted()
+        {
+            VolunteerRequest request = VolunteerRequest.Restore(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                VolunteerRequestStatus.Fulfilled, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 0);
+
+            Assert.AreEqual(0.0, request.HoursLogged);
+        }
+
+        // Test that restoring a declined request keeps its response time and has no hours.
+        [TestMethod]
+        public void Restore_WithDeclinedState_RebuildsDeclinedRequest()
+        {
+            VolunteerRequest request = VolunteerRequest.Restore(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                VolunteerRequestStatus.Declined, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 0);
+
+            Assert.AreEqual(VolunteerRequestStatus.Declined, request.Status);
+            Assert.IsNotNull(request.RespondedAt);
+        }
+
+        // Test that a restored request can't be changed in ways the normal rules forbid, for example declined after it was fulfilled.
+        [TestMethod]
+        public void Restore_WithFulfilledState_StillFollowsTheNormalRules()
+        {
+            VolunteerRequest request = VolunteerRequest.Restore(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                VolunteerRequestStatus.Fulfilled, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 1);
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => request.Decline());
+        }
+
+        // Test that restoring with an empty request id throws an ArgumentException.
+        [TestMethod]
+        public void Restore_WithEmptyId_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.Empty, Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Pending, DateTime.UtcNow, null, 0));
+        }
+
+        // Test that restoring with an empty volunteer id throws an ArgumentException.
+        [TestMethod]
+        public void Restore_WithEmptyVolunteerId_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.Empty, Guid.NewGuid(),
+                    VolunteerRequestStatus.Pending, DateTime.UtcNow, null, 0));
+        }
+
+        // Test that restoring with an empty opportunity id throws an ArgumentException.
+        [TestMethod]
+        public void Restore_WithEmptyOpportunityId_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.Empty,
+                    VolunteerRequestStatus.Pending, DateTime.UtcNow, null, 0));
+        }
+
+        // Test that negative hours are rejected when restoring.
+        [TestMethod]
+        public void Restore_WithNegativeHours_ThrowsArgumentOutOfRangeException()
+        {
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Fulfilled, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, -1));
+        }
+
+        // Test that a pending request can't be restored with a response time, because it hasn't been answered.
+        [TestMethod]
+        public void Restore_PendingWithResponseTime_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Pending, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 0));
+        }
+
+        // Test that a pending request can't be restored with hours.
+        [TestMethod]
+        public void Restore_PendingWithHours_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Pending, DateTime.UtcNow, null, 2));
+        }
+
+        // Test that a fulfilled request can't be restored without a response time.
+        [TestMethod]
+        public void Restore_FulfilledWithoutResponseTime_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Fulfilled, DateTime.UtcNow, null, 0));
+        }
+
+        // Test that a declined request can't be restored with hours.
+        [TestMethod]
+        public void Restore_DeclinedWithHours_ThrowsArgumentException()
+        {
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                VolunteerRequest.Restore(
+                    Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                    VolunteerRequestStatus.Declined, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow, 2));
+        }
     }
 }

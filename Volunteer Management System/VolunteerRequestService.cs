@@ -6,10 +6,14 @@ using System.Linq;
 namespace Volunteer_Management_System
 {
     // Stores and manages volunteer requests in memory (they do not persist between app restarts).
+    // It is shared by every signed-in user at once, so every read and write takes the same lock.
     public class VolunteerRequestService
     {
-        // Every request submitted so far.
-        private readonly List<VolunteerRequest> _requests = new();
+        // Every request stored so far. Only touch this while holding _gate.
+        private List<VolunteerRequest> _requests = new();
+
+        // Lock that keeps the list safe when several pages use the service at the same time.
+        private readonly object _gate = new();
 
         // Creates a new pending request for the volunteer and opportunity, stores it, and returns it.
         public VolunteerRequest SubmitRequest(Guid volunteerId, Guid opportunityId)
@@ -17,38 +21,67 @@ namespace Volunteer_Management_System
             VolunteerRequest request =
                 VolunteerRequest.Create(volunteerId, opportunityId);
 
-            _requests.Add(request);
+            lock (_gate)
+            {
+                _requests.Add(request);
+            }
 
             return request;
         }
 
-        // Returns every request as a read-only list.
+        // Replaces every stored request with the given ones in a single step, so readers never see a half-updated list.
+        // Used to refresh the requests from the real application and attendance data. Throws ArgumentNullException if requests is null.
+        public void ReplaceAll(IEnumerable<VolunteerRequest> requests)
+        {
+            ArgumentNullException.ThrowIfNull(requests);
+
+            List<VolunteerRequest> replacement = requests.ToList();
+
+            lock (_gate)
+            {
+                _requests = replacement;
+            }
+        }
+
+        // Returns every request as a read-only snapshot, so the caller isn't affected by later changes.
         public IReadOnlyList<VolunteerRequest> GetAllRequests()
         {
-            return _requests.AsReadOnly();
+            lock (_gate)
+            {
+                return _requests.ToList().AsReadOnly();
+            }
         }
 
         // Returns the request with the given id, or null if there isn't one.
         public VolunteerRequest? FindRequestById(Guid requestId)
         {
-            return _requests.FirstOrDefault(
-                request => request.Id == requestId);
+            lock (_gate)
+            {
+                return _requests.FirstOrDefault(
+                    request => request.Id == requestId);
+            }
         }
 
         // Returns all requests made for one opportunity.
         public IReadOnlyList<VolunteerRequest> GetRequestsForOpportunity(Guid opportunityId)
         {
-            return _requests
-                .Where(request => request.OpportunityId == opportunityId)
-                .ToList();
+            lock (_gate)
+            {
+                return _requests
+                    .Where(request => request.OpportunityId == opportunityId)
+                    .ToList();
+            }
         }
 
         // Returns all requests made by one volunteer.
         public IReadOnlyList<VolunteerRequest> GetRequestsForVolunteer(Guid volunteerId)
         {
-            return _requests
-                .Where(request => request.VolunteerId == volunteerId)
-                .ToList();
+            lock (_gate)
+            {
+                return _requests
+                    .Where(request => request.VolunteerId == volunteerId)
+                    .ToList();
+            }
         }
 
         // Fulfills the request with the given id. Throws KeyNotFoundException if it doesn't exist.

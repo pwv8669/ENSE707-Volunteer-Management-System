@@ -67,6 +67,80 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Rebuilds a request that already has a known state, for example one worked out from a saved application.
+        // The state has to make sense: a pending request has no response time and no hours,
+        // a fulfilled or declined request has a response time, and only a fulfilled request can have hours.
+        public static VolunteerRequest Restore(
+            Guid id,
+            Guid volunteerId,
+            Guid opportunityId,
+            VolunteerRequestStatus status,
+            DateTime requestedAt,
+            DateTime? respondedAt,
+            double hoursLogged)
+        {
+            if (id == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Request id is required.",
+                    nameof(id));
+            }
+
+            if (volunteerId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Volunteer id is required.",
+                    nameof(volunteerId));
+            }
+
+            if (opportunityId == Guid.Empty)
+            {
+                throw new ArgumentException(
+                    "Opportunity id is required.",
+                    nameof(opportunityId));
+            }
+
+            if (double.IsNaN(hoursLogged) || hoursLogged < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(hoursLogged),
+                    "Hours cannot be negative.");
+            }
+
+            if (status == VolunteerRequestStatus.Pending &&
+                (respondedAt != null || hoursLogged != 0))
+            {
+                throw new ArgumentException(
+                    "A pending request cannot have a response time or hours.",
+                    nameof(status));
+            }
+
+            if (status != VolunteerRequestStatus.Pending && respondedAt == null)
+            {
+                throw new ArgumentException(
+                    "A fulfilled or declined request needs a response time.",
+                    nameof(respondedAt));
+            }
+
+            if (status == VolunteerRequestStatus.Declined && hoursLogged != 0)
+            {
+                throw new ArgumentException(
+                    "A declined request cannot have hours logged.",
+                    nameof(hoursLogged));
+            }
+
+            return new VolunteerRequest
+            {
+                Id = id,
+                VolunteerId = volunteerId,
+                OpportunityId = opportunityId,
+                Status = status,
+                RequestedAt = requestedAt,
+                RespondedAt = respondedAt,
+                HoursLogged = hoursLogged
+            };
+        }
+
         // Marks a pending request as fulfilled and records when that happened.
         public void Fulfill()
         {
