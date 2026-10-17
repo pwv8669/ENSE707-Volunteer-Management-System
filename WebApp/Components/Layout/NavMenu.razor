@@ -94,11 +94,14 @@
                         <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> My profile
                     </NavLink>
                 </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="reporting">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Reporting and Dashboard
-                    </NavLink>
-                </div>
+                @* Reporting and Dashboard shows other volunteers' data, so only managers see the link. *@
+                <AuthorizeView Roles="Coordinator,OrganisationAdministrator" Context="reportingRoleContext">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="reporting">
+                            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Reporting and Dashboard
+                        </NavLink>
+                    </div>
+                </AuthorizeView>
                 <AuthorizeView Roles="@AppRoles.OrganisationAdministrator" Context="administratorContext">
                     <div class="nav-item px-3">
                         <NavLink class="nav-link" href="admin/users">

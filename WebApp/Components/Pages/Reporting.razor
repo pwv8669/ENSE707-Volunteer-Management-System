@@ -1,5 +1,7 @@
 @page "/reporting"
+@attribute [Authorize(Roles = "Coordinator,OrganisationAdministrator")]
 @using Volunteer_Management_System
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using WebApp.Data
 @inject ReportingService ReportingService
