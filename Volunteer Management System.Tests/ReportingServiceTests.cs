@@ -228,5 +228,126 @@ namespace Volunteer_Management_System.Tests
 
             Assert.HasCount(0, fulfilledRequests);
         }
+
+        // Test that an event nobody has requested yet reports zero for every count and zero hours.
+        [TestMethod]
+        public void GetEventStatistics_WithNoRequests_ReturnsZeroCounts()
+        {
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService =
+                new(new VolunteerRequestService(), opportunityService);
+            VolunteerOpportunity opportunity = CreateOpportunity(opportunityService);
+
+            EventStatistics statistics =
+                reportingService.GetEventStatistics(opportunity.Id);
+
+            Assert.AreEqual(10, statistics.VolunteersNeeded);
+            Assert.AreEqual(0, statistics.RequestsReceived);
+            Assert.AreEqual(0, statistics.FulfilledRequests);
+            Assert.AreEqual(0, statistics.PendingRequests);
+            Assert.AreEqual(0, statistics.DeclinedRequests);
+            Assert.AreEqual(0.0, statistics.TotalHoursLogged);
+        }
+
+        // Test that an event's statistics only count requests for that event, not requests for other events.
+        [TestMethod]
+        public void GetEventStatistics_WithTwoEvents_OnlyCountsRequestsForThatEvent()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService = new(requestService, opportunityService);
+            VolunteerOpportunity first = CreateOpportunity(opportunityService);
+            VolunteerOpportunity second = CreateOpportunity(opportunityService);
+            requestService.SubmitRequest(Guid.NewGuid(), first.Id);
+            requestService.SubmitRequest(Guid.NewGuid(), first.Id);
+            requestService.SubmitRequest(Guid.NewGuid(), second.Id);
+
+            EventStatistics statistics = reportingService.GetEventStatistics(first.Id);
+
+            Assert.AreEqual(2, statistics.RequestsReceived);
+            Assert.AreEqual(2, statistics.PendingRequests);
+        }
+
+        // Test that decimal hours from different volunteers are added up exactly (1.5 + 2.25 = 3.75).
+        [TestMethod]
+        public void GetEventStatistics_WithDecimalHours_SumsHoursAcrossVolunteers()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService = new(requestService, opportunityService);
+            VolunteerOpportunity opportunity = CreateOpportunity(opportunityService);
+            VolunteerRequest first = requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            VolunteerRequest second = requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+            requestService.FulfillRequest(first.Id);
+            requestService.FulfillRequest(second.Id);
+            requestService.LogHours(first.Id, 1.5);
+            requestService.LogHours(second.Id, 2.25);
+
+            EventStatistics statistics = reportingService.GetEventStatistics(opportunity.Id);
+
+            Assert.AreEqual(3.75, statistics.TotalHoursLogged);
+        }
+
+        // Test that two volunteers get their own summary lines and their hours are not mixed together.
+        [TestMethod]
+        public void GetVolunteerParticipationReport_WithTwoVolunteers_ReturnsSeparateSummaries()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService = new(requestService, opportunityService);
+            VolunteerOpportunity opportunity = CreateOpportunity(opportunityService);
+            Guid alice = Guid.NewGuid();
+            Guid ben = Guid.NewGuid();
+            VolunteerRequest aliceRequest = requestService.SubmitRequest(alice, opportunity.Id);
+            requestService.FulfillRequest(aliceRequest.Id);
+            requestService.LogHours(aliceRequest.Id, 4);
+            VolunteerRequest benRequest = requestService.SubmitRequest(ben, opportunity.Id);
+            requestService.DeclineRequest(benRequest.Id);
+
+            IReadOnlyList<VolunteerParticipationSummary> report =
+                reportingService.GetVolunteerParticipationReport();
+
+            Assert.HasCount(2, report);
+            VolunteerParticipationSummary aliceSummary = report.Single(entry => entry.VolunteerId == alice);
+            VolunteerParticipationSummary benSummary = report.Single(entry => entry.VolunteerId == ben);
+            Assert.AreEqual(4.0, aliceSummary.TotalHoursLogged);
+            Assert.AreEqual(1, aliceSummary.FulfilledRequests);
+            Assert.AreEqual(0.0, benSummary.TotalHoursLogged);
+            Assert.AreEqual(1, benSummary.DeclinedRequests);
+        }
+
+        // Test that the dashboard moves a request from pending to fulfilled as soon as it is fulfilled.
+        [TestMethod]
+        public void GetPendingRequests_AfterFulfilling_MovesRequestToFulfilledList()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService = new(requestService, opportunityService);
+            VolunteerOpportunity opportunity = CreateOpportunity(opportunityService);
+            VolunteerRequest request = requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+
+            requestService.FulfillRequest(request.Id);
+
+            Assert.HasCount(0, reportingService.GetPendingRequests());
+            IReadOnlyList<VolunteerRequest> fulfilled = reportingService.GetFulfilledRequests();
+            Assert.HasCount(1, fulfilled);
+            Assert.AreEqual(request.Id, fulfilled[0].Id);
+        }
+
+        // Test that a declined request disappears from the pending list and does not appear in the fulfilled list.
+        [TestMethod]
+        public void GetPendingRequests_AfterDeclining_AppearsInNeitherList()
+        {
+            VolunteerRequestService requestService = new();
+            VolunteerOpportunityService opportunityService = new();
+            ReportingService reportingService = new(requestService, opportunityService);
+            VolunteerOpportunity opportunity = CreateOpportunity(opportunityService);
+            VolunteerRequest request = requestService.SubmitRequest(Guid.NewGuid(), opportunity.Id);
+
+            requestService.DeclineRequest(request.Id);
+
+            Assert.HasCount(0, reportingService.GetPendingRequests());
+            Assert.HasCount(0, reportingService.GetFulfilledRequests());
+        }
     }
 }

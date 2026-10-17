@@ -322,6 +322,112 @@ namespace Volunteer_Management_System.Tests
             Assert.AreEqual("Beach Cleanup", history[0].EventTitle);
         }
 
+        // Test that asking for the history of an empty volunteer id returns an empty list instead of throwing.
+        [TestMethod]
+        public async Task GetHistory_WithEmptyVolunteerId_ReturnsEmptyList()
+        {
+            await using ProfileTestHarness context = await ProfileTestHarness.CreateAsync();
+
+            Assert.HasCount(0, context.Service.GetHistory(Guid.Empty));
+        }
+
+        // Test that the history summary of an empty volunteer id is all zeros instead of throwing.
+        [TestMethod]
+        public async Task GetHistorySummary_WithEmptyVolunteerId_ReturnsZeroSummary()
+        {
+            await using ProfileTestHarness context = await ProfileTestHarness.CreateAsync();
+
+            VolunteerHistorySummary summary = context.Service.GetHistorySummary(Guid.Empty);
+
+            Assert.AreEqual(0, summary.TotalActivities);
+            Assert.AreEqual(0.0, summary.TotalHours);
+        }
+
+        // Test that the history summary counts each status and adds up the hours from the volunteer's requests.
+        [TestMethod]
+        public async Task GetHistorySummary_WithFulfilledAndDeclinedRequests_CountsAndTotalsHours()
+        {
+            await using ProfileTestHarness context = await ProfileTestHarness.CreateAsync();
+            Guid volunteerId = Guid.Parse(context.UserId);
+            DateTime start = DateTime.UtcNow.AddDays(3);
+            VolunteerOpportunity beach = context.Opportunities.CreateOpportunity(
+                "Beach Cleanup", "Clean the beach.", "Mission Bay", start, start.AddHours(3), "Teamwork", 5);
+            VolunteerOpportunity garden = context.Opportunities.CreateOpportunity(
+                "Garden Day", "Plant seedlings.", "Grey Lynn", start.AddDays(1), start.AddDays(1).AddHours(2), "Gardening", 5);
+            VolunteerRequest fulfilled = context.Requests.SubmitRequest(volunteerId, beach.Id);
+            context.Requests.FulfillRequest(fulfilled.Id);
+            context.Requests.LogHours(fulfilled.Id, 3);
+            VolunteerRequest declined = context.Requests.SubmitRequest(volunteerId, garden.Id);
+            context.Requests.DeclineRequest(declined.Id);
+
+            VolunteerHistorySummary summary = context.Service.GetHistorySummary(volunteerId);
+
+            Assert.AreEqual(2, summary.TotalActivities);
+            Assert.AreEqual(1, summary.FulfilledActivities);
+            Assert.AreEqual(1, summary.DeclinedActivities);
+            Assert.AreEqual(0, summary.PendingActivities);
+            Assert.AreEqual(3.0, summary.TotalHours);
+        }
+
+        // Test that a volunteer can save exactly the maximum number of availability windows but not one more.
+        [TestMethod]
+        public async Task AddAvailabilityAsync_AtTheSlotLimit_RejectsTheNextOneAndKeepsExistingSlots()
+        {
+            await using ProfileTestHarness context = await ProfileTestHarness.CreateAsync();
+            for (int day = 1; day <= VolunteerProfileService.MaxAvailabilitySlots; day++)
+            {
+                ProfileResult added = await context.Service.AddAvailabilityAsync(
+                    context.UserId,
+                    Window(FixedNow.Date.AddDays(day).AddHours(9), hours: 1));
+                Assert.IsTrue(added.Succeeded, added.Message);
+            }
+
+            ProfileResult result = await context.Service.AddAvailabilityAsync(
+                context.UserId,
+                Window(FixedNow.Date.AddDays(VolunteerProfileService.MaxAvailabilitySlots + 1).AddHours(9), hours: 1));
+
+            Assert.IsFalse(result.Succeeded);
+            StringAssert.Contains(result.Message, VolunteerProfileService.MaxAvailabilitySlots.ToString());
+            VolunteerProfileModel profile = (await context.Service.GetProfileAsync(context.UserId))!;
+            Assert.HasCount(VolunteerProfileService.MaxAvailabilitySlots, profile.Availability);
+        }
+
+        // Test that adding availability for an account that doesn't exist is rejected and nothing is saved.
+        [TestMethod]
+        public async Task AddAvailabilityAsync_UnknownUser_ReturnsFailure()
+        {
+            await using ProfileTestHarness context = await ProfileTestHarness.CreateAsync();
+
+            ProfileResult result = await context.Service.AddAvailabilityAsync(
+                Guid.NewGuid().ToString(),
+                Window(FixedNow.AddDays(1), hours: 2));
+
+            Assert.IsFalse(result.Succeeded);
+        }
+
+        // Test that an Identity user id (a Guid stored as text) converts to the Guid the domain services use.
+        [TestMethod]
+        public void ToVolunteerId_WithGuidText_ReturnsThatGuid()
+        {
+            Guid expected = Guid.NewGuid();
+
+            Assert.AreEqual(expected, VolunteerProfileService.ToVolunteerId(expected.ToString()));
+        }
+
+        // Test that text that isn't a Guid converts to Guid.Empty instead of throwing.
+        [TestMethod]
+        public void ToVolunteerId_WithNonGuidText_ReturnsEmptyGuid()
+        {
+            Assert.AreEqual(Guid.Empty, VolunteerProfileService.ToVolunteerId("not-a-guid"));
+        }
+
+        // Test that blank text converts to Guid.Empty.
+        [TestMethod]
+        public void ToVolunteerId_WithEmptyText_ReturnsEmptyGuid()
+        {
+            Assert.AreEqual(Guid.Empty, VolunteerProfileService.ToVolunteerId(string.Empty));
+        }
+
         private static PersonalDetailsInput ValidDetails() => new()
         {
             FirstName = "Aroha",

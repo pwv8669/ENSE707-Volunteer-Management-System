@@ -189,5 +189,63 @@ namespace Volunteer_Management_System.Tests
                 exception.Message,
                 "was not found");
         }
+
+        // Test that asking for an opportunity nobody has requested gives an empty list, not an error.
+        [TestMethod]
+        public void GetRequestsForOpportunity_WithNoMatches_ReturnsEmptyList()
+        {
+            VolunteerRequestService service = new();
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            IReadOnlyList<VolunteerRequest> requests =
+                service.GetRequestsForOpportunity(Guid.NewGuid());
+
+            Assert.HasCount(0, requests);
+        }
+
+        // Test that asking for a volunteer who has made no requests gives an empty list, not an error.
+        [TestMethod]
+        public void GetRequestsForVolunteer_WithNoMatches_ReturnsEmptyList()
+        {
+            VolunteerRequestService service = new();
+            service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+
+            IReadOnlyList<VolunteerRequest> requests =
+                service.GetRequestsForVolunteer(Guid.NewGuid());
+
+            Assert.HasCount(0, requests);
+        }
+
+        // Test that the service passes on the rule that a fulfilled request cannot then be declined.
+        [TestMethod]
+        public void DeclineRequest_AfterFulfilling_ThrowsInvalidOperationException()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest request =
+                service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            service.FulfillRequest(request.Id);
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                service.DeclineRequest(request.Id));
+
+            Assert.AreEqual(
+                VolunteerRequestStatus.Fulfilled,
+                service.FindRequestById(request.Id)!.Status);
+        }
+
+        // Test that negative hours are rejected by the service and nothing is logged.
+        [TestMethod]
+        public void LogHours_WithNegativeHours_ThrowsArgumentOutOfRangeException()
+        {
+            VolunteerRequestService service = new();
+            VolunteerRequest request =
+                service.SubmitRequest(Guid.NewGuid(), Guid.NewGuid());
+            service.FulfillRequest(request.Id);
+
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                service.LogHours(request.Id, -2));
+
+            Assert.AreEqual(0.0, service.FindRequestById(request.Id)!.HoursLogged);
+        }
     }
 }

@@ -158,5 +158,102 @@ namespace Volunteer_Management_System.Tests
             Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
                 request.LogHours(0));
         }
+
+        // Test that logging negative hours throws an ArgumentOutOfRangeException and leaves the total unchanged.
+        [TestMethod]
+        public void LogHours_WithNegativeHours_ThrowsArgumentOutOfRangeException()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            request.Fulfill();
+            request.LogHours(2);
+
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+                request.LogHours(-1));
+
+            Assert.AreEqual(2.0, request.HoursLogged);
+        }
+
+        // Test the lower boundary: the smallest sensible positive amount of hours (0.01) is accepted.
+        [TestMethod]
+        public void LogHours_WithVerySmallPositiveHours_IsAccepted()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            request.Fulfill();
+
+            request.LogHours(0.01);
+
+            Assert.AreEqual(0.01, request.HoursLogged);
+        }
+
+        // Test that a declined request cannot be fulfilled afterwards.
+        [TestMethod]
+        public void Fulfill_OnDeclinedRequest_ThrowsInvalidOperationException()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            request.Decline();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                request.Fulfill());
+
+            Assert.AreEqual(VolunteerRequestStatus.Declined, request.Status);
+        }
+
+        // Test that a fulfilled request cannot be declined afterwards.
+        [TestMethod]
+        public void Decline_OnFulfilledRequest_ThrowsInvalidOperationException()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            request.Fulfill();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                request.Decline());
+
+            Assert.AreEqual(VolunteerRequestStatus.Fulfilled, request.Status);
+        }
+
+        // Test that hours cannot be logged against a declined request.
+        [TestMethod]
+        public void LogHours_OnDeclinedRequest_ThrowsInvalidOperationException()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+            request.Decline();
+
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
+                request.LogHours(2));
+
+            Assert.AreEqual(0.0, request.HoursLogged);
+        }
+
+        // Test that responding to a request records a UTC response time that is not before the request time.
+        [TestMethod]
+        public void Fulfill_RecordsUtcResponseTime()
+        {
+            VolunteerRequest request =
+                VolunteerRequest.Create(Guid.NewGuid(), Guid.NewGuid());
+
+            request.Fulfill();
+
+            Assert.IsNotNull(request.RespondedAt);
+            Assert.IsTrue(request.RespondedAt >= request.RequestedAt);
+            Assert.IsTrue(request.RespondedAt <= DateTime.UtcNow);
+        }
+
+        // Test that every new request gets its own unique id, even for the same volunteer and opportunity.
+        [TestMethod]
+        public void Create_TwoRequestsForTheSamePair_HaveDifferentIds()
+        {
+            Guid volunteerId = Guid.NewGuid();
+            Guid opportunityId = Guid.NewGuid();
+
+            VolunteerRequest first = VolunteerRequest.Create(volunteerId, opportunityId);
+            VolunteerRequest second = VolunteerRequest.Create(volunteerId, opportunityId);
+
+            Assert.AreNotEqual(first.Id, second.Id);
+        }
     }
 }
