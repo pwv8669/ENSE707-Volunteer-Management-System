@@ -5,17 +5,15 @@
 @using Volunteer_Management_System
 @using WebApp.Data
 @using WebApp.Services
+@using WebApp.Services.Management
 @using WebApp.Services.Scheduling
 
 @attribute [Authorize(Roles = "Coordinator,OrganisationAdministrator")]
 
-@inject VolunteerOpportunityService OpportunityService
-@inject VolunteerApplicationService ApplicationService
-@inject VolunteerAssignmentService AssignmentService
+@inject VolunteerManagementPersistenceService ManagementPersistenceService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DomainUserService DomainUserService
 @inject AvailabilitySyncService AvailabilitySyncService
-@inject VolunteerSchedulePersistenceService SchedulePersistenceService
 @inject UserManager<ApplicationUser> UserManager
 
 @*
@@ -62,12 +60,10 @@ else
     @foreach (VolunteerOpportunity opportunity in PublishedOpportunities)
     {
         IReadOnlyList<VolunteerApplication> pendingApplications =
-            AssignmentService.GetPendingApplicationsForOpportunity(
-                opportunity.Id);
+            PendingApplications[opportunity.Id];
 
         IReadOnlyList<VolunteerAssignment> assignments =
-            AssignmentService.GetAssignmentsForOpportunity(
-                opportunity.Id);
+            ActiveAssignments[opportunity.Id];
 
         <div class="card mb-4">
             <div class="card-body">
@@ -89,8 +85,7 @@ else
 
                         <p class="mb-3">
                             <strong>Remaining Capacity:</strong>
-                            @AssignmentService.GetRemainingCapacity(
-                                opportunity.Id)
+                            @RemainingCapacity[opportunity.Id]
                         </p>
                     </div>
 
@@ -145,7 +140,7 @@ else
 
                                             <button
                                                 class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => RejectApplication(application)">
+                                                @onclick="() => RejectApplicationAsync(application)">
                                                 Reject
                                             </button>
                                         </td>
@@ -222,6 +217,12 @@ else
     private List<VolunteerOpportunity>
         PublishedOpportunities { get; set; } = new();
 
+    // Each published opportunity has a persisted list of pending applications,
+    // active assignments and remaining capacity for the current page refresh.
+    private Dictionary<Guid, IReadOnlyList<VolunteerApplication>> PendingApplications { get; } = new();
+    private Dictionary<Guid, IReadOnlyList<VolunteerAssignment>> ActiveAssignments { get; } = new();
+    private Dictionary<Guid, int> RemainingCapacity { get; } = new();
+
     private Dictionary<Guid, string>
         VolunteerNames { get; set; } = new();
 
@@ -250,9 +251,7 @@ else
                 "Only coordinators or organisation administrators can manage assignments.");
         }
 
-        RefreshOpportunities();
-
-        await LoadVolunteerNamesAsync();
+        await RefreshPageDataAsync();
     }
 
     // Approves a pending application and creates an assignment.
@@ -275,32 +274,8 @@ else
                 .SyncVolunteerAvailabilityAsync(
                     application.VolunteerId);
 
-            VolunteerOpportunity opportunity =
-                OpportunityService.FindOpportunityById(
-                    application.OpportunityId)
-                ?? throw new KeyNotFoundException(
-                    "Volunteer opportunity was not found.");
-
-            // The domain service checks assignments from the current process.
-            // Persisted shifts are checked as well so a restart cannot allow an
-            // overlapping assignment for the same volunteer.
-            if (await SchedulePersistenceService.HasConflictAsync(
-                application.VolunteerId.ToString(),
-                opportunity.StartDateTime,
-                opportunity.EndDateTime))
-            {
-                throw new InvalidOperationException(
-                    "Volunteer already has an overlapping assignment.");
-            }
-
-            VolunteerAssignment assignment =
-                AssignmentService.ApproveAndAssign(
-                CurrentUser,
-                application.Id);
-
-            await SchedulePersistenceService.RecordAssignmentAsync(
-                assignment,
-                opportunity);
+            await ManagementPersistenceService.ApproveAndAssignAsync(
+                CurrentUser, application.Id);
 
             SetSuccessMessage(
                 "Application approved and volunteer assigned successfully.");
@@ -315,7 +290,7 @@ else
     }
 
     // Rejects a pending volunteer application.
-    private void RejectApplication(
+    private async Task RejectApplicationAsync(
         VolunteerApplication application)
     {
         try
@@ -326,12 +301,13 @@ else
                     "A reviewer account could not be found.");
             }
 
-            AssignmentService.RejectApplication(
-                CurrentUser,
-                application.Id);
+            await ManagementPersistenceService.RejectApplicationAsync(
+                CurrentUser, application.Id);
 
             SetSuccessMessage(
                 "Application rejected successfully.");
+
+            await RefreshPageDataAsync();
         }
         catch (Exception exception)
         {
@@ -352,23 +328,8 @@ else
                     "A reviewer account could not be found.");
             }
 
-            VolunteerAssignment assignment =
-                AssignmentService.FindAssignmentById(assignmentId)
-                ?? throw new KeyNotFoundException(
-                    "Volunteer assignment was not found.");
-            VolunteerOpportunity opportunity =
-                OpportunityService.FindOpportunityById(
-                    assignment.OpportunityId)
-                ?? throw new KeyNotFoundException(
-                    "Volunteer opportunity was not found.");
-
-            AssignmentService.CancelAssignment(
-                CurrentUser,
-                assignmentId);
-
-            await SchedulePersistenceService.RecordCancellationAsync(
-                assignment,
-                opportunity);
+            await ManagementPersistenceService.CancelAssignmentAsync(
+                CurrentUser, assignmentId);
 
             SetSuccessMessage(
                 "Volunteer assignment cancelled successfully.");
@@ -384,19 +345,29 @@ else
 
     // Loads the currently published opportunities that can receive
     // volunteer assignments.
-    private void RefreshOpportunities()
+    private async Task RefreshOpportunitiesAsync()
     {
-        PublishedOpportunities =
-            OpportunityService
-                .GetPublishedOpportunities()
-                .ToList();
+        PublishedOpportunities = (await ManagementPersistenceService
+            .GetOpportunitiesAsync(false)).ToList();
+        PendingApplications.Clear();
+        ActiveAssignments.Clear();
+        RemainingCapacity.Clear();
+        foreach (VolunteerOpportunity opportunity in PublishedOpportunities)
+        {
+            PendingApplications[opportunity.Id] = await ManagementPersistenceService
+                .GetPendingApplicationsForOpportunityAsync(opportunity.Id);
+            ActiveAssignments[opportunity.Id] = await ManagementPersistenceService
+                .GetAssignmentsForOpportunityAsync(opportunity.Id);
+            RemainingCapacity[opportunity.Id] = await ManagementPersistenceService
+                .GetRemainingCapacityAsync(opportunity.Id);
+        }
     }
 
     // Refreshes opportunity information and volunteer names after an
     // application has been approved and assigned.
     private async Task RefreshPageDataAsync()
     {
-        RefreshOpportunities();
+        await RefreshOpportunitiesAsync();
         await LoadVolunteerNamesAsync();
     }
 
@@ -405,18 +376,12 @@ else
     private async Task LoadVolunteerNamesAsync()
     {
         IEnumerable<Guid> volunteerIds =
-            ApplicationService
-                .GetAllApplications()
-                .Select(application =>
-                    application.VolunteerId)
-                .Concat(
-                    PublishedOpportunities
-                        .SelectMany(opportunity =>
-                            AssignmentService
-                                .GetAssignmentsForOpportunity(
-                                    opportunity.Id))
-                        .Select(assignment =>
-                            assignment.VolunteerId))
+            PendingApplications.Values
+                .SelectMany(applications => applications)
+                .Select(application => application.VolunteerId)
+                .Concat(ActiveAssignments.Values
+                    .SelectMany(assignments => assignments)
+                    .Select(assignment => assignment.VolunteerId))
                 .Distinct();
 
         foreach (Guid volunteerId in volunteerIds)

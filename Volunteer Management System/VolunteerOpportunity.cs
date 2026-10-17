@@ -92,6 +92,33 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Rebuilds an opportunity read from the WebApp database. The stored
+        // values have already passed validation when they were first saved.
+        public static VolunteerOpportunity Restore(
+            Guid id,
+            string title,
+            string description,
+            string location,
+            DateTime startDateTime,
+            DateTime endDateTime,
+            string requiredSkills,
+            int volunteersNeeded,
+            OpportunityStatus status,
+            DateTime createdAt) =>
+            new()
+            {
+                Id = id,
+                Title = title,
+                Description = description,
+                Location = location,
+                StartDateTime = startDateTime,
+                EndDateTime = endDateTime,
+                RequiredSkills = requiredSkills,
+                VolunteersNeeded = volunteersNeeded,
+                Status = status,
+                CreatedAt = createdAt
+            };
+
         // Updates the details of an existing volunteer opportunity.
         // The new values must pass the same validation rules used when
         // creating an opportunity.

@@ -23,12 +23,13 @@ namespace WebApp.Services.Activity
     //   - application Rejected                         -> request Declined
     //   - application Approved                         -> request Fulfilled, with the hours recorded as attended
     //   - application Approved but every shift was cancelled -> request Declined
-    // Shifts and attendance are saved in the database, but applications live in memory, so after an app restart
-    // a saved shift whose application has gone still counts as a Fulfilled (or Declined, if cancelled) request.
+    // Applications, opportunities, shifts and attendance are saved in the
+    // database, so this read model can be rebuilt after an app restart.
     public sealed class VolunteerActivitySyncService(
         VolunteerApplicationService applicationService,
         VolunteerRequestService requestService,
-        IDbContextFactory<ApplicationDbContext> contextFactory)
+        IDbContextFactory<ApplicationDbContext> contextFactory,
+        VolunteerOpportunityService? opportunityService = null)
     {
         // Only one refresh runs at a time, so an older result can never overwrite a newer one.
         private readonly SemaphoreSlim refreshGate = new(1, 1);
@@ -41,7 +42,19 @@ namespace WebApp.Services.Activity
             try
             {
                 List<ShiftActivity> shifts = await LoadShiftsAsync(cancellationToken);
-                List<VolunteerApplication> applications = applicationService.GetAllApplications().ToList();
+                List<VolunteerApplication> applications = await LoadApplicationsAsync(cancellationToken);
+
+                // Unit tests and older development data can still use the
+                // legacy service, but persisted applications take precedence.
+                if (applications.Count == 0)
+                {
+                    applications = applicationService.GetAllApplications().ToList();
+                }
+
+                if (opportunityService is not null)
+                {
+                    opportunityService.ReplaceAll(await LoadOpportunitiesAsync(cancellationToken));
+                }
 
                 requestService.ReplaceAll(BuildRequests(applications, shifts));
             }
@@ -186,6 +199,35 @@ namespace WebApp.Services.Activity
             }
 
             return shifts;
+        }
+
+        // Reads submitted applications that remain available after the WebApp restarts.
+        private async Task<List<VolunteerApplication>> LoadApplicationsAsync(CancellationToken cancellationToken)
+        {
+            await using ApplicationDbContext db = await contextFactory.CreateDbContextAsync(cancellationToken);
+            List<VolunteerApplicationRecord> records = await db.VolunteerApplications.AsNoTracking().ToListAsync(cancellationToken);
+            List<VolunteerApplication> applications = new();
+            foreach (VolunteerApplicationRecord record in records)
+            {
+                if (Guid.TryParse(record.VolunteerId, out Guid volunteerId))
+                {
+                    applications.Add(VolunteerApplication.Restore(record.Id, volunteerId, record.OpportunityId,
+                        record.Status, record.AppliedAt, record.ReviewedAt,
+                        Guid.TryParse(record.ReviewedByUserId, out Guid reviewer) ? reviewer : null));
+                }
+            }
+            return applications;
+        }
+
+        // Rebuilds the opportunity read model used by Reporting and Profile history.
+        private async Task<List<VolunteerOpportunity>> LoadOpportunitiesAsync(CancellationToken cancellationToken)
+        {
+            await using ApplicationDbContext db = await contextFactory.CreateDbContextAsync(cancellationToken);
+            return (await db.VolunteerOpportunities.AsNoTracking().ToListAsync(cancellationToken))
+                .Select(record => VolunteerOpportunity.Restore(record.Id, record.Title, record.Description,
+                    record.Location, record.StartDateTime, record.EndDateTime, record.RequiredSkills,
+                    record.VolunteersNeeded, record.Status, record.CreatedAt))
+                .ToList();
         }
     }
 }

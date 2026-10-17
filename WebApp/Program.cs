@@ -9,6 +9,7 @@ using WebApp.Services;
 using WebApp.Services.Activity;
 using WebApp.Services.Attendance;
 using WebApp.Services.Identity;
+using WebApp.Services.Management;
 using WebApp.Services.Profile;
 using WebApp.Services.Scheduling;
 
@@ -51,29 +52,27 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 builder.Services.AddScoped<UserRoleManagementService>();
 
-// Reporting and Dashboard: volunteer opportunity/request domain services.
-// These currently hold data in memory (see the domain library's service
-// classes) rather than in the Postgres database, so opportunity and
-// request data does not yet survive an app restart. Wiring them to
-// ApplicationDbContext is tracked as a follow-up once opportunity/request
-// management gets its own persisted entities.
+// Reporting and Dashboard retain domain services as read models. The
+// activity sync service rebuilds them from persisted Features 2 to 6 data.
 builder.Services.AddSingleton<VolunteerOpportunityService>();
 builder.Services.AddSingleton<VolunteerRequestService>();
 builder.Services.AddSingleton<ReportingService>();
 
-// Added for Feature 3 WebApp integration:
-// Provides volunteer application functionality such as submitting
-// applications and viewing application status.
+// Retained as a compatibility read model for older development data and
+// activity-sync tests. WebApp application changes use the persisted service.
 builder.Services.AddSingleton<VolunteerApplicationService>();
 
 // Added for Feature 4 WebApp integration:
 // Stores the domain availability used during volunteer assignment checks.
 builder.Services.AddSingleton<VolunteerAvailabilityService>();
 
-// Added for Feature 4 WebApp integration:
-// Handles application review, assignment, capacity, availability and
-// scheduling conflict checks.
+// Retained for domain tests; the WebApp assignment page uses the persisted
+// service so assignments remain available after a restart.
 builder.Services.AddSingleton<VolunteerAssignmentService>();
+
+// Features 2 to 4 use this service to persist opportunities, applications
+// and assignments in the configured Supabase database.
+builder.Services.AddSingleton<VolunteerManagementPersistenceService>();
 
 // Added for Feature 5 WebApp integration:
 // Persists assigned shifts and notifications in the Supabase database so
@@ -94,9 +93,9 @@ builder.Services.AddScoped<DomainUserService>();
 // with the domain availability service before assignment.
 builder.Services.AddScoped<AvailabilitySyncService>();
 
-// Volunteer Profile Management: history is built from the in-memory request and
-// opportunity services above; profile details and availability are saved in Postgres
-// through ApplicationDbContext. TimeProvider lets tests control "now".
+// Volunteer Profile Management reads the activity-sync read model rebuilt from
+// persisted data; profile details and availability use ApplicationDbContext.
+// TimeProvider lets tests control "now".
 builder.Services.AddSingleton<VolunteerHistoryService>();
 
 // Reporting and Dashboard and the profile history read "requests" that are rebuilt from the real
@@ -118,8 +117,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseMigrationsEndPoint();
 
-    // Demo opportunities so the profile history and reporting pages have events to show locally.
-    DevelopmentSampleData.SeedOpportunities(app.Services.GetRequiredService<VolunteerOpportunityService>());
+    // Development data is now created through the persisted opportunity page.
 }
 else
 {

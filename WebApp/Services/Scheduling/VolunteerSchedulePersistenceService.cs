@@ -34,6 +34,11 @@ namespace WebApp.Services.Scheduling
         // persisted schedule or notification state changes.
         public event Action<string>? ScheduleChanged;
 
+        // Lets the Feature 4 persistence transaction notify open schedules
+        // after it saves a shift without opening a second database context.
+        public void NotifyScheduleChanged(string volunteerId) =>
+            ScheduleChanged?.Invoke(volunteerId);
+
         // Saves an assigned shift and its unread notification together.
         public async Task RecordAssignmentAsync(
             VolunteerAssignment assignment,

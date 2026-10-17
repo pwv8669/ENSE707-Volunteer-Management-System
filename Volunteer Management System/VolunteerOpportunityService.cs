@@ -52,6 +52,15 @@ namespace Volunteer_Management_System
             return _opportunities.AsReadOnly();
         }
 
+        // Replaces the in-memory reporting read model with opportunities
+        // loaded from the WebApp database in a single operation.
+        public void ReplaceAll(IEnumerable<VolunteerOpportunity> opportunities)
+        {
+            ArgumentNullException.ThrowIfNull(opportunities);
+            _opportunities.Clear();
+            _opportunities.AddRange(opportunities);
+        }
+
         // Returns only Published opportunities.
         // This is used when volunteers browse opportunities that are
         // currently available for applications.

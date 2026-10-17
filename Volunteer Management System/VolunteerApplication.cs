@@ -77,6 +77,27 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Rebuilds an application read from the WebApp database so its
+        // review status is preserved after an application restart.
+        public static VolunteerApplication Restore(
+            Guid id,
+            Guid volunteerId,
+            Guid opportunityId,
+            VolunteerApplicationStatus status,
+            DateTime appliedAt,
+            DateTime? reviewedAt,
+            Guid? reviewedByUserId) =>
+            new()
+            {
+                Id = id,
+                VolunteerId = volunteerId,
+                OpportunityId = opportunityId,
+                Status = status,
+                AppliedAt = appliedAt,
+                ReviewedAt = reviewedAt,
+                ReviewedByUserId = reviewedByUserId
+            };
+
         // Approves a Pending application and records who reviewed it
         // and when the review occurred.
         public void Approve(Guid reviewedByUserId)

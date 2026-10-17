@@ -13,11 +13,11 @@
 @using Microsoft.AspNetCore.Authorization
 @using Volunteer_Management_System
 @using WebApp.Services
+@using WebApp.Services.Management
 
 @attribute [Authorize(Roles = "Volunteer")]
 
-@inject VolunteerApplicationService ApplicationService
-@inject VolunteerOpportunityService OpportunityService
+@inject VolunteerManagementPersistenceService ManagementPersistenceService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DomainUserService DomainUserService
 
@@ -55,19 +55,15 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (VolunteerApplication application in Applications)
+                @foreach (VolunteerApplicationView application in Applications)
                 {
-                    VolunteerOpportunity? opportunity =
-                        OpportunityService.FindOpportunityById(
-                            application.OpportunityId);
-
                     <tr>
                         <td>
-                            @(opportunity?.Title ?? "Unknown opportunity")
+                            @application.Title
                         </td>
 
                         <td>
-                            @(opportunity?.Location ?? "-")
+                            @application.Location
                         </td>
 
                         <td>
@@ -89,7 +85,7 @@ else
 @code {
     private User? CurrentUser { get; set; }
 
-    private List<VolunteerApplication> Applications { get; set; }
+    private List<VolunteerApplicationView> Applications { get; set; }
         = new();
 
     private string? ErrorMessage { get; set; }
@@ -115,12 +111,8 @@ else
                     "Only volunteers can view their applications.");
             }
 
-            Applications =
-                ApplicationService
-                    .GetApplicationsForVolunteer(CurrentUser.Id)
-                    .OrderByDescending(application =>
-                        application.AppliedAt)
-                    .ToList();
+            Applications = (await ManagementPersistenceService
+                .GetApplicationViewsForVolunteerAsync(CurrentUser.Id)).ToList();
         }
         catch (Exception exception)
         {

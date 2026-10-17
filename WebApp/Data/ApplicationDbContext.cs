@@ -23,6 +23,16 @@ namespace WebApp.Data
         public DbSet<VolunteerAttendanceRecord> VolunteerAttendanceRecords =>
             Set<VolunteerAttendanceRecord>();
 
+        // Features 2 to 4 use these records as their durable source of truth.
+        public DbSet<VolunteerOpportunityRecord> VolunteerOpportunities =>
+            Set<VolunteerOpportunityRecord>();
+
+        public DbSet<VolunteerApplicationRecord> VolunteerApplications =>
+            Set<VolunteerApplicationRecord>();
+
+        public DbSet<VolunteerAssignmentRecord> VolunteerAssignments =>
+            Set<VolunteerAssignmentRecord>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             // Identity's own tables must be configured first.
@@ -126,6 +136,59 @@ namespace WebApp.Data
                 attendance.HasOne(item => item.Shift)
                     .WithOne()
                     .HasForeignKey<VolunteerAttendanceRecord>(item => item.ShiftId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<VolunteerOpportunityRecord>(opportunity =>
+            {
+                opportunity.HasKey(item => item.Id);
+                opportunity.Property(item => item.Title).IsRequired().HasMaxLength(200);
+                opportunity.Property(item => item.Description).IsRequired().HasMaxLength(4000);
+                opportunity.Property(item => item.Location).IsRequired().HasMaxLength(300);
+                opportunity.Property(item => item.RequiredSkills).IsRequired().HasMaxLength(500);
+                opportunity.Property(item => item.StartDateTime).HasColumnType("timestamp without time zone");
+                opportunity.Property(item => item.EndDateTime).HasColumnType("timestamp without time zone");
+                opportunity.Property(item => item.CreatedAt).HasColumnType("timestamp with time zone");
+                opportunity.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+                opportunity.HasIndex(item => new { item.Status, item.StartDateTime });
+            });
+
+            builder.Entity<VolunteerApplicationRecord>(application =>
+            {
+                application.HasKey(item => item.Id);
+                application.Property(item => item.VolunteerId).IsRequired();
+                application.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+                application.Property(item => item.AppliedAt).HasColumnType("timestamp with time zone");
+                application.Property(item => item.ReviewedAt).HasColumnType("timestamp with time zone");
+                application.HasIndex(item => new { item.VolunteerId, item.OpportunityId }).IsUnique();
+                application.HasIndex(item => new { item.OpportunityId, item.Status });
+                application.HasOne<VolunteerOpportunityRecord>()
+                    .WithMany()
+                    .HasForeignKey(item => item.OpportunityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                application.HasOne<ApplicationUser>()
+                    .WithMany()
+                    .HasForeignKey(item => item.VolunteerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<VolunteerAssignmentRecord>(assignment =>
+            {
+                assignment.HasKey(item => item.Id);
+                assignment.Property(item => item.VolunteerId).IsRequired();
+                assignment.Property(item => item.AssignedByUserId).IsRequired();
+                assignment.Property(item => item.AssignedAt).HasColumnType("timestamp with time zone");
+                assignment.Property(item => item.CancelledAt).HasColumnType("timestamp with time zone");
+                assignment.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+                assignment.HasIndex(item => new { item.OpportunityId, item.Status });
+                assignment.HasIndex(item => new { item.VolunteerId, item.Status });
+                assignment.HasOne<VolunteerOpportunityRecord>()
+                    .WithMany()
+                    .HasForeignKey(item => item.OpportunityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                assignment.HasOne<VolunteerApplicationRecord>()
+                    .WithMany()
+                    .HasForeignKey(item => item.ApplicationId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

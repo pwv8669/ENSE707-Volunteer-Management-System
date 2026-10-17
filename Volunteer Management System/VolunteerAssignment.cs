@@ -96,6 +96,27 @@ namespace Volunteer_Management_System
             };
         }
 
+        // Rebuilds an assignment read from the WebApp database so active and
+        // cancelled allocations remain available after a restart.
+        public static VolunteerAssignment Restore(
+            Guid id,
+            Guid volunteerId,
+            Guid opportunityId,
+            Guid applicationId,
+            Guid assignedByUserId,
+            DateTime assignedAt,
+            AssignmentStatus status) =>
+            new()
+            {
+                Id = id,
+                VolunteerId = volunteerId,
+                OpportunityId = opportunityId,
+                ApplicationId = applicationId,
+                AssignedByUserId = assignedByUserId,
+                AssignedAt = assignedAt,
+                Status = status
+            };
+
         // Cancels an active assignment.
         // An assignment that has already been cancelled cannot be
         // cancelled again.
